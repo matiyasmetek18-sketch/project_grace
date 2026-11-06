@@ -6,6 +6,12 @@ The first gathering is a pre-winter work day on the grounds: outdoor jobs before
 
 No account is required. The host's name, phone number, and email are not on the page, because none were provided.
 
+## Open it
+
+https://matiyasmetek18-sketch.github.io/project_grace/
+
+That address is the public site. Nothing needs to be installed. A refresh on a gathering link stays on Grace, because GitHub Pages serves the app for unknown paths.
+
 ## Run it locally
 
 You need Node.js 20 or newer.
@@ -15,7 +21,7 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually http://localhost:5173).
+Open http://localhost:5173/project_grace/ — the dev server uses the same `/project_grace/` base path as the public site.
 
 Other commands:
 

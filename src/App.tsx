@@ -6,10 +6,12 @@ import { HomePage } from "./pages/HomePage";
 import { NewEventPage } from "./pages/NewEventPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
+const basename = import.meta.env.BASE_URL.replace(/\/$/, "") || undefined;
+
 export default function App() {
   return (
     <GatheringsProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<HomePage />} />
