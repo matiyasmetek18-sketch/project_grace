@@ -9,6 +9,8 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  # Creating the Pages site the first time requires administration, not only pages: write.
+  administration: write
 
 concurrency:
   group: pages
@@ -45,6 +47,17 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Ensure GitHub Pages is enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh api "repos/${{ github.repository }}/pages" >/dev/null 2>&1; then
+            echo "GitHub Pages is already enabled."
+            exit 0
+          fi
+          gh api --method POST "repos/${{ github.repository }}/pages" -f build_type=workflow \
+            || gh api --method PUT "repos/${{ github.repository }}/pages" -f build_type=workflow
+
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
