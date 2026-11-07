@@ -82,17 +82,67 @@ export function AvailabilityPage() {
     setDayError("");
   }
 
-  function addHours(start: string, end: string) {
-    if (days.length === 0) {
-      setHint("Add a day you can come first.");
+  function draftValue(): string {
+    return (days.length === 0 ? dayDraft : extraDraft).trim();
+  }
+
+  /** Include the day currently being entered, if it is a real new day. */
+  function withDraftDay(): { dates: string[]; ranges: TimeRange[]; error: string | null } {
+    const draft = draftValue();
+    if (!draft) {
+      if (days.length === 0) return { dates: [], ranges, error: "Choose a day you can come, then pick a time." };
+      return { dates: days, ranges, error: null };
+    }
+    if (days.includes(draft)) return { dates: days, ranges, error: null };
+    const message = dayChoiceMessage(draft, days);
+    if (message) return { dates: [], ranges, error: message };
+    return { dates: [...days, draft], ranges: copyHoursOnto(draft, ranges), error: null };
+  }
+
+  function rememberDraft(dates: string[]) {
+    if (dates.length > days.length) setExtraDraft("");
+  }
+
+  function presetIsOn(start: string, end: string): boolean {
+    return days.length > 0 && days.every((date) => ranges.some((range) => range.date === date && range.start === start && range.end === end));
+  }
+
+  function togglePreset(start: string, end: string) {
+    const ready = withDraftDay();
+    if (ready.error) {
+      setDayError(ready.error);
+      setHint("");
       return;
     }
+    const on = ready.dates.every((date) =>
+      ready.ranges.some((range) => range.date === date && range.start === start && range.end === end),
+    );
+    const nextRanges = on
+      ? ready.ranges.filter((range) => !(ready.dates.includes(range.date) && range.start === start && range.end === end))
+      : mergeRanges([...ready.ranges, ...ready.dates.map((date) => ({ date, start, end }))]);
+    setDays(ready.dates);
+    setRanges(nextRanges);
+    rememberDraft(ready.dates);
+    setDayError("");
+    setHint("");
+    setFormError("");
+  }
+
+  function addHours(start: string, end: string) {
     if (minutes(end) <= minutes(start)) {
       setHint("The end needs to be later than the start.");
       return;
     }
-    const added = days.map((date) => ({ date, start, end }));
-    setRanges((current) => mergeRanges([...current, ...added]));
+    const ready = withDraftDay();
+    if (ready.error) {
+      setDayError(ready.error);
+      setHint("");
+      return;
+    }
+    setDays(ready.dates);
+    setRanges(mergeRanges([...ready.ranges, ...ready.dates.map((date) => ({ date, start, end }))]));
+    rememberDraft(ready.dates);
+    setDayError("");
     setHint("");
     setFormError("");
   }
@@ -180,20 +230,6 @@ export function AvailabilityPage() {
           <p className="field-help" id="day-help">
             Start with one day. Add more only if you need them. Sundays and Thursdays are not on this list.
           </p>
-          <ul className="calendar-legend" aria-label="Day key">
-            <li>
-              <span className="day day-key is-on" aria-hidden="true">
-                <span className="day-wd">{formatWeekdayShort(suggested)}</span>
-                <span className="day-num">{formatDayNum(suggested)}</span>
-              </span>
-              <span>A day you added. You can remove it if it is the wrong one.</span>
-            </li>
-            <li>
-              <span className="closed-mark" aria-hidden="true" />
-              <span className="legend-note">Sundays and Thursdays are not accepted.</span>
-            </li>
-          </ul>
-
           {orderedDays.length > 0 && (
             <ul className="chosen-days">
               {orderedDays.map((date, index) => (
@@ -266,14 +302,24 @@ export function AvailabilityPage() {
             <h2>Hours</h2>
             <p>These are suggestions, not a promise to stay. Come and go as you like. The time is added to every day on your list.</p>
             <div className="presets">
-              {PRESETS.map((preset) => (
-                <button key={preset.id} type="button" className="preset" onClick={() => addHours(preset.start, preset.end)}>
-                  <span className="preset-name">{preset.label}</span>
-                  <span className="preset-time">
-                    {formatTime(preset.start)} – {formatTime(preset.end)}
-                  </span>
-                </button>
-              ))}
+              {PRESETS.map((preset) => {
+                const selected = presetIsOn(preset.start, preset.end);
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    className="preset"
+                    aria-pressed={selected}
+                    onClick={() => togglePreset(preset.start, preset.end)}
+                  >
+                    <span className="preset-name">{preset.label}</span>
+                    <span className="preset-time">
+                      {formatTime(preset.start)} – {formatTime(preset.end)}
+                      {selected ? " · Selected" : ""}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="own-hours">

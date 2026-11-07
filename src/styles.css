@@ -1734,39 +1734,6 @@ input[type="radio"] {
   font-size: clamp(1.55rem, 4vw, 1.9rem);
 }
 
-.calendar-legend {
-  list-style: none;
-  display: grid;
-  gap: 0.7rem;
-  margin: 0.85rem 0 1.15rem;
-  padding: 0.9rem 1rem;
-  border-radius: 1.15rem;
-  background: #fffdf8;
-  border: 1.5px solid rgba(28, 25, 20, 0.16);
-}
-
-.calendar-legend li {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  color: #1c1914;
-}
-
-.closed-mark {
-  width: 2.4rem;
-  height: 2.4rem;
-  flex: none;
-  border-radius: 0.7rem;
-  border: 1.5px solid #3a332b;
-  background:
-    linear-gradient(135deg, transparent 46%, #8a3828 46% 54%, transparent 54%),
-    #f4efe4;
-}
-
-.legend-note {
-  color: #1c1914;
-}
-
 .day-key {
   width: 3.15rem;
   min-height: 3.5rem;
@@ -1870,6 +1837,17 @@ input[type="radio"] {
 .collector .preset-time {
   color: #3a332b;
   font-weight: 560;
+}
+
+.collector .preset[aria-pressed="true"] {
+  background: #1b3326;
+  border-color: #1b3326;
+  color: #fffdf8;
+}
+
+.collector .preset[aria-pressed="true"] .preset-name,
+.collector .preset[aria-pressed="true"] .preset-time {
+  color: #fffdf8;
 }
 
 .own-hours {
