@@ -3,6 +3,7 @@ import {
   dateSpanDays,
   defaultGatheringWindow,
   eachDate,
+  eachGatheringDate,
   isISODate,
   mergeRanges,
   timePresets,
@@ -17,6 +18,10 @@ describe("dates and hours", () => {
   it("lists an inclusive window", () => {
     expect(eachDate("2026-11-14", "2026-11-16")).toEqual(["2026-11-14", "2026-11-15", "2026-11-16"]);
     expect(dateSpanDays("2026-11-14", "2026-12-06")).toBe(22);
+  });
+
+  it("leaves Sunday off gathering calendars", () => {
+    expect(eachGatheringDate("2026-11-14", "2026-11-16")).toEqual(["2026-11-14", "2026-11-16"]);
   });
 
   it("merges touching hours on the same day", () => {

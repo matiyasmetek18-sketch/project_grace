@@ -37,10 +37,7 @@ export function TaskBoard({
         <div>
           <p className="index">03</p>
           <h2 id="work-title">Open work</h2>
-          <p>
-            Grouped by where it happens on the grounds. The list can change as jobs finish, or when weather says a task
-            should wait. Updates stay in this browser.
-          </p>
+          <p>Grouped by where the job sits. Updates you make stay in this browser.</p>
         </div>
         <button type="button" className="btn btn-ghost" aria-pressed={editing} onClick={() => setEditing((value) => !value)}>
           {editing ? "Done updating" : "Update what is still open"}
