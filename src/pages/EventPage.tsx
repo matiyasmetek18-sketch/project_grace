@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { AvailabilityForm } from "../components/AvailabilityForm";
 import { PersonChips } from "../components/Chips";
 import { Heatmap } from "../components/Heatmap";
@@ -10,6 +10,16 @@ import { useGatherings } from "../gatherings";
 import { blockPhrase, buildOverlap, peopleWord } from "../lib/overlap";
 import { formatFullDate, formatTime, formatWindow } from "../lib/time";
 import { useDocumentTitle } from "../useDocumentTitle";
+
+type TabId = "overview" | "tasks" | "hours" | "overlap";
+
+function tabFromHash(hash: string): TabId | null {
+  if (hash === "#hours" || hash === "#join") return "hours";
+  if (hash === "#tasks" || hash === "#work" || hash === "#places") return "tasks";
+  if (hash === "#overlap") return "overlap";
+  if (hash === "#overview") return "overview";
+  return null;
+}
 
 export function EventPage() {
   const { eventId = "" } = useParams();
@@ -25,18 +35,35 @@ export function EventPage() {
     removeEvent,
   } = useGatherings();
   const navigate = useNavigate();
+  const { hash } = useLocation();
   const event = getEvent(eventId);
   useDocumentTitle(event ? `${event.title} — Grace` : "Gathering — Grace");
   const [thanks, setThanks] = useState<string | null>(null);
   const [formKey, setFormKey] = useState(0);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [tab, setTab] = useState<TabId>(() => tabFromHash(hash) ?? "overview");
 
   useEffect(() => {
     setThanks(null);
     setCopied("idle");
     setConfirmRemove(false);
   }, [eventId]);
+
+  useEffect(() => {
+    const next = tabFromHash(hash);
+    if (next) setTab(next);
+  }, [hash, eventId]);
+
+  function selectTab(next: TabId) {
+    setTab(next);
+    navigate({ hash: next === "overview" ? "" : next }, { replace: true });
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    document.getElementById("section-tabs")?.scrollIntoView({
+      block: "start",
+      behavior: reduce ? "auto" : "smooth",
+    });
+  }
 
   const volunteers = event ? volunteersFor(event) : [];
   const volunteerKey = volunteers
@@ -94,6 +121,29 @@ export function EventPage() {
     }
   }
 
+  const tabs: { id: TabId; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "tasks", label: event.mode === "work" ? "Tasks" : "Places" },
+    { id: "hours", label: "Your hours" },
+    { id: "overlap", label: "Overlap" },
+  ];
+
+  function onTabKey(eventKey: KeyboardEvent<HTMLButtonElement>) {
+    const keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(eventKey.key)) return;
+    eventKey.preventDefault();
+    const index = tabs.findIndex((item) => item.id === tab);
+    let next = index;
+    if (eventKey.key === "ArrowRight") next = (index + 1) % tabs.length;
+    if (eventKey.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
+    if (eventKey.key === "Home") next = 0;
+    if (eventKey.key === "End") next = tabs.length - 1;
+    selectTab(tabs[next].id);
+    requestAnimationFrame(() => {
+      document.getElementById(`tab-${tabs[next].id}`)?.focus();
+    });
+  }
+
   return (
     <div className={`season season-${event.season}`}>
       <header className="event-hero wrap">
@@ -109,137 +159,192 @@ export function EventPage() {
           <strong>{formatWindow(event.windowStart, event.windowEnd)}</strong>
           <span>
             {formatTime(event.dayStart)} – {formatTime(event.dayEnd)}
+            <span className="meta-quiet"> · Sundays are left off</span>
           </span>
         </p>
-        <nav className="subnav" aria-label="On this gathering">
-          <a href="#overlap">Overlap</a>
-          <a href="#places">{event.mode === "meet" ? "Places" : "Grounds"}</a>
-          {event.mode === "work" && <a href="#work">Tasks</a>}
-          <a href="#join">Add hours</a>
-          <a href="#people">People</a>
-        </nav>
       </header>
 
-      <div className="wrap story-grid">
-        <div className="story">
-          {event.story.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
+      <div className="wrap tabs-wrap" id="section-tabs">
+        <div className="tabs" role="tablist" aria-label="On this gathering">
+          {tabs.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              id={`tab-${item.id}`}
+              aria-selected={tab === item.id}
+              aria-controls={`panel-${item.id}`}
+              tabIndex={tab === item.id ? 0 : -1}
+              onClick={() => selectTab(item.id)}
+              onKeyDown={onTabKey}
+            >
+              {item.label}
+            </button>
           ))}
         </div>
-        {event.notes.length > 0 && (
-          <aside className="journal">
-            <p className="eyebrow">Keep in mind</p>
-            {event.notes.map((note) => (
-              <p key={note}>{note}</p>
-            ))}
-          </aside>
-        )}
       </div>
 
-      <section id="overlap" className="wrap panel overlap-panel" aria-labelledby="overlap-title">
-        <div className="section-head">
-          <p className="index">01</p>
-          <h2 id="overlap-title">When hours overlap</h2>
-          <p>
-            Each square is a half hour. The number is how many people can be there. Color deepens as more people
-            share that time, and a gold edge marks the strongest block.
+      {thanks && (
+        <div className="wrap">
+          <p className="banner" role="status">
+            Thank you, {thanks}. Your hours are saved in this browser and already in the chart.
           </p>
         </div>
-        <div className="best-layout">
-          <article className="best-card">
-            {best ? (
-              <>
-                <p className="eyebrow">{best.people.length >= 2 ? "Strongest shared time" : "A time that is open"}</p>
-                <h3>{formatFullDate(best.date)}</h3>
-                <p className="best-hours">
-                  {formatTime(best.start)} – {formatTime(best.end)}
-                </p>
-                <p>{blockPhrase(best.people)}.</p>
-                <PersonChips people={best.people} />
-              </>
-            ) : (
-              <>
-                <p className="eyebrow">Waiting on hours</p>
-                <h3>No one has shared a time yet.</h3>
-                <p>Add yours and the grid will start to fill.</p>
-              </>
-            )}
-          </article>
-          {model.blocks.length > 1 && (
-            <div className="also">
-              <h3>Other strong blocks</h3>
-              <ol>
-                {model.blocks.slice(1).map((block) => (
-                  <li key={`${block.date}-${block.start}`}>
-                    <span className="also-when">
-                      <span>{formatFullDate(block.date)}</span>
-                      <span className="also-time">
-                        {formatTime(block.start)} – {formatTime(block.end)}
-                      </span>
-                    </span>
-                    <span className="also-count">{peopleWord(block.people.length)}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
+      )}
+
+      {tab === "overview" && (
+        <div className="wrap tab-panel" role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+          <div className="story">
+            {event.story.map((paragraph) => (
+              <p key={paragraph}>{paragraph}</p>
+            ))}
+          </div>
+          {best ? (
+            <article className="best-card best-card-compact">
+              <p className="eyebrow">{best.people.length >= 2 ? "Strongest shared time" : "A time that is open"}</p>
+              <h2>{formatFullDate(best.date)}</h2>
+              <p className="best-hours">
+                {formatTime(best.start)} – {formatTime(best.end)}
+              </p>
+              <p>{blockPhrase(best.people)}.</p>
+            </article>
+          ) : (
+            <p>No hours yet. Add yours and the overlap will start to fill.</p>
+          )}
+          <div className="hero-actions">
+            <button type="button" className="btn btn-primary" onClick={() => selectTab("hours")}>
+              Add your hours
+            </button>
+            <button type="button" className="btn btn-ghost" onClick={() => selectTab("overlap")}>
+              See the overlap
+            </button>
+          </div>
+          {event.notes.length > 0 && (
+            <aside className="journal">
+              <p className="eyebrow">About the work</p>
+              {event.notes.map((note) => (
+                <p key={note}>{note}</p>
+              ))}
+            </aside>
           )}
         </div>
-        <Heatmap key={event.id} event={event} model={model} />
-        <div className="summary-row">
-          <button type="button" className="btn btn-ghost btn-small" onClick={() => void copySummary()}>
-            Copy a summary
-          </button>
-          {copied === "copied" && <p role="status">Copied.</p>}
-          {copied === "failed" && (
-            <p role="status">The browser blocked copying. The times above are ready to select by hand.</p>
+      )}
+
+      {tab === "tasks" && (
+        <div className="wrap tab-panel" role="tabpanel" id="panel-tasks" aria-labelledby="tab-tasks">
+          {event.mode === "work" ? (
+            <TaskBoard
+              event={event}
+              volunteers={stableVolunteers}
+              statusOf={(taskId) => taskStatus(event.id, taskId)}
+              onStatus={(taskId, status) => setTaskStatus(event.id, taskId, status)}
+            />
+          ) : (
+            <Places
+              event={event}
+              volunteers={stableVolunteers}
+              statusOf={(taskId) => taskStatus(event.id, taskId)}
+            />
           )}
         </div>
-      </section>
+      )}
 
-      <div className="wrap">
-        <Places event={event} volunteers={stableVolunteers} statusOf={(taskId) => taskStatus(event.id, taskId)} />
-      </div>
-
-      {event.mode === "work" && (
-        <div className="wrap">
-          <TaskBoard
+      {tab === "hours" && (
+        <div className="wrap tab-panel join-wrap" role="tabpanel" id="panel-hours" aria-labelledby="tab-hours">
+          <AvailabilityForm
+            key={formKey}
+            event={event}
+            areas={openAreas.length > 0 ? openAreas : event.areas}
+            tasks={openTasks.length > 0 ? openTasks : event.tasks}
+            onSubmit={(draft) => {
+              addVolunteer(event.id, draft);
+              setThanks(draft.name);
+              setFormKey((value) => value + 1);
+              selectTab("overlap");
+            }}
+          />
+          <PeopleList
             event={event}
             volunteers={stableVolunteers}
+            examplesHidden={hidden}
+            onToggleExamples={(next) => setExamplesHidden(event.id, next)}
+            onRemove={(id) => removeVolunteer(event.id, id)}
             statusOf={(taskId) => taskStatus(event.id, taskId)}
-            onStatus={(taskId, status) => setTaskStatus(event.id, taskId, status)}
           />
         </div>
       )}
 
-      <div className="wrap join-wrap">
-        {thanks && (
-          <p className="banner" role="status">
-            Thank you, {thanks}. Your hours are saved in this browser and already in the chart.
-          </p>
-        )}
-        <AvailabilityForm
-          key={formKey}
-          event={event}
-          areas={openAreas.length > 0 ? openAreas : event.areas}
-          tasks={openTasks.length > 0 ? openTasks : event.tasks}
-          onSubmit={(draft) => {
-            addVolunteer(event.id, draft);
-            setThanks(draft.name);
-            setFormKey((value) => value + 1);
-          }}
-        />
-      </div>
-
-      <div className="wrap">
-        <PeopleList
-          event={event}
-          volunteers={stableVolunteers}
-          examplesHidden={hidden}
-          onToggleExamples={(next) => setExamplesHidden(event.id, next)}
-          onRemove={(id) => removeVolunteer(event.id, id)}
-          statusOf={(taskId) => taskStatus(event.id, taskId)}
-        />
-      </div>
+      {tab === "overlap" && (
+        <div className="wrap tab-panel" role="tabpanel" id="panel-overlap" aria-labelledby="tab-overlap">
+          <section className="panel overlap-panel" aria-labelledby="overlap-title">
+            <div className="section-head">
+              <h2 id="overlap-title">When hours overlap</h2>
+              <p>
+                Each square is a half hour, Monday through Saturday. The number is how many people can be there. A gold
+                edge marks the strongest block.
+              </p>
+            </div>
+            <div className="best-layout">
+              <article className="best-card">
+                {best ? (
+                  <>
+                    <p className="eyebrow">{best.people.length >= 2 ? "Strongest shared time" : "A time that is open"}</p>
+                    <h3>{formatFullDate(best.date)}</h3>
+                    <p className="best-hours">
+                      {formatTime(best.start)} – {formatTime(best.end)}
+                    </p>
+                    <p>{blockPhrase(best.people)}.</p>
+                    <PersonChips people={best.people} />
+                  </>
+                ) : (
+                  <>
+                    <p className="eyebrow">Waiting on hours</p>
+                    <h3>No one has shared a time yet.</h3>
+                    <button type="button" className="btn btn-light" onClick={() => selectTab("hours")}>
+                      Add your hours
+                    </button>
+                  </>
+                )}
+              </article>
+              {model.blocks.length > 1 && (
+                <div className="also">
+                  <h3>Other strong blocks</h3>
+                  <ol>
+                    {model.blocks.slice(1).map((block) => (
+                      <li key={`${block.date}-${block.start}`}>
+                        <span className="also-when">
+                          <span>{formatFullDate(block.date)}</span>
+                          <span className="also-time">
+                            {formatTime(block.start)} – {formatTime(block.end)}
+                          </span>
+                        </span>
+                        <span className="also-count">{peopleWord(block.people.length)}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+            <Heatmap key={event.id} event={event} model={model} />
+            <div className="summary-row">
+              <button type="button" className="btn btn-ghost btn-small" onClick={() => void copySummary()}>
+                Copy a summary
+              </button>
+              {copied === "copied" && <p role="status">Copied.</p>}
+              {copied === "failed" && (
+                <p role="status">The browser blocked copying. The times above are ready to select by hand.</p>
+              )}
+            </div>
+          </section>
+          {event.mode === "work" && (
+            <Places
+              event={event}
+              volunteers={stableVolunteers}
+              statusOf={(taskId) => taskStatus(event.id, taskId)}
+            />
+          )}
+        </div>
+      )}
 
       {!event.featured && !event.sample && (
         <div className="wrap event-remove">
@@ -248,7 +353,7 @@ export function EventPage() {
               <span>Remove this gathering from this browser?</span>
               <button
                 type="button"
-                className="btn btn-small"
+                className="btn btn-small btn-ghost"
                 onClick={() => {
                   removeEvent(event.id);
                   navigate("/");
@@ -267,12 +372,6 @@ export function EventPage() {
           )}
         </div>
       )}
-
-      <div className="dock">
-        <a className="btn btn-primary" href="#join">
-          Add your hours
-        </a>
-      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { seedEvents } from "../data/seed";
+import { weekdayIndex } from "./time";
 import { areaPull, blockPhrase, buildOverlap, heatStep } from "./overlap";
 
 const workDay = seedEvents[0];
@@ -20,15 +21,16 @@ describe("overlap", () => {
       "Marcus",
       "Sam",
     ]);
+    expect(model.dates.every((date) => weekdayIndex(date) !== 0 && weekdayIndex(date) !== 4)).toBe(true);
     expect(model.blocks[1]).toMatchObject({ date: "2026-11-14", start: "09:00", end: "11:00" });
     expect(model.blocks[1].people).toHaveLength(3);
     expect(model.max).toBeGreaterThanOrEqual(5);
   });
 
-  it("finds the winter planning overlap on December 3", () => {
+  it("finds the winter planning overlap on December 4", () => {
     const model = buildOverlap(welcome, welcome.volunteers);
     expect(model.blocks[0]).toMatchObject({
-      date: "2026-12-03",
+      date: "2026-12-04",
       start: "18:00",
       end: "19:00",
     });
