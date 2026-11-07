@@ -55,7 +55,7 @@ The charts are filled, on a first visit, with people marked **Example** (Sam, El
 
 **Before the ground freezes** runs November 14 through December 6, 2026, between 8:00 AM and 4:00 PM. Tasks are grouped by area of the grounds: greenbelts, the north yard, the rental house and parking, platforms, the orchard, the carport, berry beds, pots, and the south side. The weed wacker still needs line. Heavier tasks are marked so people can see where extra strength helps.
 
-With the example people visible, the strongest shared block is Saturday, November 21, 10:00 AM–12:00 PM.
+With the example people visible, the strongest shared block is Saturday, November 21, 10:00 AM–12:00 PM. Sundays are left off the calendars and the overlap chart.
 
 ## Stack
 

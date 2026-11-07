@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { weekdayIndex } from "../lib/time";
 import { seedEvents } from "./seed";
 
 const requiredTasks = [
@@ -36,6 +37,19 @@ describe("seeded gatherings", () => {
     const blob = JSON.stringify(seedEvents);
     expect(blob).not.toMatch(/@/);
     expect(blob).not.toMatch(/\b\d{3}[-.)\s]\d{3}[-.)\s]\d{4}\b/);
+  });
+
+  it("keeps the work day focused on tasks and off Sundays", () => {
+    const workDay = seedEvents[0];
+    const copy = [...workDay.story, ...workDay.notes, workDay.summary, workDay.kicker].join(" ").toLowerCase();
+    expect(copy).not.toMatch(/church|newsletter|teen|\bmen\b/);
+    for (const event of seedEvents) {
+      for (const volunteer of event.volunteers) {
+        for (const range of volunteer.ranges) {
+          expect(weekdayIndex(range.date)).not.toBe(0);
+        }
+      }
+    }
   });
 
   it("labels every seeded person as an example and offers a second gathering", () => {

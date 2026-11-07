@@ -1,5 +1,5 @@
 import type { Gathering, TaskStatus, Volunteer } from "../types";
-import { eachDate, eachSlotStart, minutes, SLOT_MINUTES, formatHHMM } from "./time";
+import { eachGatheringDate, eachSlotStart, minutes, SLOT_MINUTES, formatHHMM } from "./time";
 
 export type PersonRef = {
   id: string;
@@ -77,7 +77,7 @@ function scoreBlock(people: number, slotCount: number): number {
 }
 
 export function buildOverlap(event: Gathering, volunteers: Volunteer[]): OverlapModel {
-  const dates = eachDate(event.windowStart, event.windowEnd);
+  const dates = eachGatheringDate(event.windowStart, event.windowEnd);
   const slotStarts = eachSlotStart(event.dayStart, event.dayEnd);
   const cells: HeatCell[][] = dates.map((date) =>
     slotStarts.map((start) => ({

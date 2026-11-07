@@ -69,6 +69,11 @@ export function eachDate(start: string, end: string): string[] {
   return out;
 }
 
+/** Gathering calendars leave Sunday off. */
+export function eachGatheringDate(start: string, end: string): string[] {
+  return eachDate(start, end).filter((iso) => parseISODate(iso).getDay() !== 0);
+}
+
 export function eachSlotStart(dayStart: string, dayEnd: string): string[] {
   const start = minutes(dayStart);
   const end = minutes(dayEnd);
@@ -116,10 +121,20 @@ export function weekdayIndex(iso: string): number {
   return parseISODate(iso).getDay();
 }
 
+/** Monday-start weeks, in the order the dates appear. Sundays are omitted when the list already skipped them. */
 export function groupWeeks(dates: string[]): string[][] {
-  const weeks: string[][] = [];
-  for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
-  return weeks;
+  const groups = new Map<string, string[]>();
+  for (const iso of dates) {
+    const date = parseISODate(iso);
+    const day = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
+    const key = formatISODate(monday);
+    const list = groups.get(key) ?? [];
+    list.push(iso);
+    groups.set(key, list);
+  }
+  return [...groups.values()];
 }
 
 export function formatFullDate(iso: string): string {
