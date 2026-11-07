@@ -50,6 +50,13 @@ export function isISODate(value: string): boolean {
   return formatISODate(parseISODate(value)) === value;
 }
 
+/** Null when the last day is the first day or later. */
+export function dayOrderMessage(first: string, last: string): string | null {
+  if (!isISODate(first) || !isISODate(last)) return "Choose a real first day and last day.";
+  if (last < first) return "The last day has to be the same day as the first, or a later day.";
+  return null;
+}
+
 export function dateSpanDays(start: string, end: string): number {
   const a = parseISODate(start).getTime();
   const b = parseISODate(end).getTime();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dateSpanDays,
+  dayOrderMessage,
   defaultGatheringWindow,
   eachDate,
   eachGatheringDate,
@@ -22,6 +23,14 @@ describe("dates and hours", () => {
 
   it("leaves Sunday off gathering calendars", () => {
     expect(eachGatheringDate("2026-11-14", "2026-11-16")).toEqual(["2026-11-14", "2026-11-16"]);
+  });
+
+  it("refuses a last day that comes before the first", () => {
+    expect(dayOrderMessage("2026-11-14", "2026-11-07")).toBe(
+      "The last day has to be the same day as the first, or a later day.",
+    );
+    expect(dayOrderMessage("2026-11-07", "2026-11-07")).toBeNull();
+    expect(dayOrderMessage("2026-11-07", "2026-11-21")).toBeNull();
   });
 
   it("merges touching hours on the same day", () => {

@@ -1,10 +1,8 @@
 # Grace
 
-Grace is a small web app for community gatherings. People share the days and hours they can come, and the tasks or rooms they can take on. The page shows where those hours overlap, and where hands are drawn.
+Grace is a one-page site for collecting availability. A person adds their name, the days and times they can come, and an optional note. They do not have to stay for any set number of hours.
 
-The first gathering is a pre-winter work day on the grounds: outdoor jobs before the freeze. A second, clearly labeled sample gathering shows the same tools used for an evening planning meet-up. You can also add a gathering of your own in this browser.
-
-No account is required. The host's name, phone number, and email are not on the page, because none were provided.
+No account is required. No host name, phone, or email is shown.
 
 ## Open it
 
@@ -36,27 +34,14 @@ npm run preview
 
 ## What is saved
 
-Grace keeps what you add in **this browser only**, under the localStorage key `grace.store.v1`. A refresh keeps it. Nothing is sent to a server, so another phone or another person has a separate copy. That is a limit of this first version.
+Grace keeps what you add in **this browser only**, under the localStorage key `grace.availability.v1`. A refresh keeps it. Nothing is sent to a server, so another phone has its own copy. Sundays are left off the calendar. The last day of the range cannot be set before the first.
 
 Saved on this device:
 
-- Hours and notes you submit
-- Gatherings you create
-- Tasks you mark done or waiting on the season
-- Whether example people are hidden
-
-The footer action **Clear this browser** removes those additions and brings the examples back. The two original gatherings stay, because they ship with the app.
-
-## Example people
-
-The charts are filled, on a first visit, with people marked **Example** (Sam, Elena, Marcus, Amina, and Chris on the work day; Jonah, Ruth, Luis, and Nora on the sample evening). They are sample data, not neighbors. Hide them from the people section when you want the picture to show only hours saved in this browser.
-
-## The work day
-
-**Before the ground freezes** runs November 14 through December 6, 2026, between 8:00 AM and 4:00 PM. Tasks are grouped by area of the grounds: greenbelts, the north yard, the rental house and parking, platforms, the orchard, the carport, berry beds, pots, and the south side. The weed wacker still needs line. Heavier tasks are marked so people can see where extra strength helps.
-
-With the example people visible, the strongest shared block is Saturday, November 21, 10:00 AM–12:00 PM. Sundays are left off the calendars and the overlap chart.
+- The name you enter
+- The days and times you add
+- An optional note
 
 ## Stack
 
-Vite, React, and TypeScript. Type is self-hosted Fraunces and Outfit. Overlap math lives in `src/lib/overlap.ts` and is covered by `npm test`.
+Vite, React, and TypeScript. Type is self-hosted Fraunces and Outfit.
