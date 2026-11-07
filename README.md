@@ -34,7 +34,7 @@ npm run preview
 
 ## What is saved
 
-Grace keeps what you add in **this browser only**, under the localStorage key `grace.availability.v1`. A refresh keeps it. Nothing is sent to a server, so another phone has its own copy. People add one day at a time. Sundays and Thursdays are not accepted, and a day already on the list cannot be added again.
+Answers are stored in a shared public collection (a [crudcrud](https://crudcrud.com) list). Anyone who opens the page can read them and add their own. There is no account. People add one day at a time. Sundays and Thursdays are not accepted, and a day already on the list cannot be added again. The page also draws where those times overlap.
 
 Saved on this device:
 

@@ -21,7 +21,7 @@ export function Layout() {
       <footer className="footer">
         <div className="wrap">
           <p className="footer-mark">Grace</p>
-          <p>What you add stays in this browser. A refresh keeps it. No account is required.</p>
+          <p>Answers on this page are shared. Anyone with the link can see them. No account is required.</p>
         </div>
       </footer>
     </>

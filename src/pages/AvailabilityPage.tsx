@@ -1,6 +1,8 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { CommonTimes } from "../components/CommonTimes";
 import type { TimeRange } from "../types";
-import { loadEntries, saveEntries, type AvailabilityEntry } from "../lib/availabilityStore";
+import type { AvailabilityEntry } from "../lib/availabilityStore";
+import { fetchSharedAnswers, publishSharedAnswer, removeSharedAnswer } from "../lib/sharedAnswers";
 import { uid } from "../lib/id";
 import {
   dayChoiceMessage,
@@ -41,7 +43,8 @@ function copyHoursOnto(date: string, ranges: TimeRange[]): TimeRange[] {
 export function AvailabilityPage() {
   useDocumentTitle("Grace — when you can come");
   const suggested = useMemo(() => nextOpenDay(), []);
-  const [entries, setEntries] = useState<AvailabilityEntry[]>(() => loadEntries());
+  const [entries, setEntries] = useState<AvailabilityEntry[]>([]);
+  const [loading, setLoading] = useState(true);
   const [saveError, setSaveError] = useState(false);
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
@@ -56,6 +59,29 @@ export function AvailabilityPage() {
   const [formError, setFormError] = useState("");
   const [thanks, setThanks] = useState("");
   const errorRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    let stop = false;
+    async function refresh() {
+      try {
+        const shared = await fetchSharedAnswers();
+        if (!stop) {
+          setEntries(shared);
+          setSaveError(false);
+        }
+      } catch {
+        if (!stop) setSaveError(true);
+      } finally {
+        if (!stop) setLoading(false);
+      }
+    }
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 15000);
+    return () => {
+      stop = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   const startOptions = useMemo(() => halfHours(DAY_START, "20:30"), []);
   const endOptions = useMemo(() => halfHours("07:30", DAY_END), []);
@@ -147,7 +173,7 @@ export function AvailabilityPage() {
     setFormError("");
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!name.trim()) {
       setFormError("Add your name so people know who can come.");
@@ -172,10 +198,17 @@ export function AvailabilityPage() {
       ranges: keepSeparateRanges(ranges),
       createdAt: new Date().toISOString(),
     };
-    const next = [entry, ...entries];
-    setEntries(next);
-    setSaveError(!saveEntries(next));
-    setThanks(entry.name);
+    try {
+      const saved = await publishSharedAnswer(entry);
+      setEntries((current) => [saved, ...current.filter((item) => item.id !== entry.id)]);
+      setSaveError(false);
+      setThanks(saved.name);
+    } catch {
+      setSaveError(true);
+      setFormError("This answer did not reach the shared list. Try again in a moment.");
+      errorRef.current?.focus();
+      return;
+    }
     setName("");
     setNote("");
     setDays([]);
@@ -411,10 +444,15 @@ export function AvailabilityPage() {
         </div>
       </form>
 
+      <CommonTimes answers={entries} />
+
       <section className="saved" aria-labelledby="saved-title">
-        <h2 id="saved-title">Saved on this device</h2>
-        {entries.length === 0 ? (
-          <p className="saved-empty">No one has added times in this browser yet.</p>
+        <h2 id="saved-title">Everyone's answers</h2>
+        <p className="field-help">Anyone who opens this page sees the same list.</p>
+        {loading ? (
+          <p className="saved-empty">Loading answers…</p>
+        ) : entries.length === 0 ? (
+          <p className="saved-empty">No one has added a time yet.</p>
         ) : (
           <ul className="saved-list">
             {entries.map((entry) => (
@@ -432,9 +470,12 @@ export function AvailabilityPage() {
                   type="button"
                   className="text-btn"
                   onClick={() => {
-                    const next = entries.filter((item) => item.id !== entry.id);
-                    setEntries(next);
-                    setSaveError(!saveEntries(next));
+                    void removeSharedAnswer(entry.id)
+                      .then(() => {
+                        setEntries((current) => current.filter((item) => item.id !== entry.id));
+                        setSaveError(false);
+                      })
+                      .catch(() => setSaveError(true));
                   }}
                 >
                   Remove {entry.name}
