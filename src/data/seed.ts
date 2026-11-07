@@ -134,17 +134,17 @@ const workTasks: Task[] = [
 const workDay: Gathering = {
   id: "before-the-frost",
   title: "Before the ground freezes",
-  kicker: "Featured · community work day",
+  kicker: "Featured · outdoor work day",
   summary:
-    "A pre-winter work day on the grounds. Outdoor jobs while the weather still allows — trees, weeds, porch, parking, and the beds.",
+    "Outdoor jobs while the weather still allows — trees, weeds, porch, parking, and the beds.",
   story: [
-    "The host is concentrating on outdoor work before the ground freezes. Trees need to come down, beds need weeding and planting, a rental porch needs repair, parking needs paving, and the berries need a trellis.",
-    "It is also a way to know more people from church. Notices like this used to travel in a newsletter. Here, a person can say when they are free and which work they can take, and the hours everyone shares appear on their own.",
+    "The work is outdoors, before the ground freezes. Trees need to come down, beds need weeding and planting, a rental porch needs repair, parking needs paving, and the berries need a trellis.",
+    "The open list is grouped by where the job sits on the grounds. Pick the hours you can give and the tasks you can take.",
   ],
   notes: [
     "The list moves. Finished jobs come off, and weather can set a task aside until another season. What is marked open is the work still waiting.",
     "The weed wacker still needs line put on. Until that small job is done, the trimming is harder to finish.",
-    "Help is especially appreciated from men and teens who can take on the heavier outdoor work. Anyone who can give an hour is welcome. Tasks marked “Heavier lift” ask for more strength, or a second pair of hands.",
+    "Tasks marked “Heavier lift” are the larger outdoor jobs: trees, the porch railing, pavers, paving, moving dirt, and the carport shelves.",
   ],
   featured: true,
   sample: false,
@@ -164,8 +164,8 @@ const workDay: Gathering = {
       "I can bring a saw and give the mornings.",
       [
         { date: "2026-11-14", start: "08:00", end: "13:00" },
+        { date: "2026-11-20", start: "09:00", end: "12:00" },
         { date: "2026-11-21", start: "08:00", end: "13:00" },
-        { date: "2026-11-22", start: "09:00", end: "12:00" },
       ],
       ["hazelnut", "oak", "midtrees", "rail"],
     ),
@@ -186,8 +186,8 @@ const workDay: Gathering = {
       "I can run the trimmer once it has line.",
       [
         { date: "2026-11-18", start: "15:00", end: "16:00" },
+        { date: "2026-11-20", start: "13:00", end: "16:00" },
         { date: "2026-11-21", start: "08:00", end: "12:00" },
-        { date: "2026-11-22", start: "13:00", end: "16:00" },
       ],
       ["ww-north", "ww-plat", "ww-orch", "pavers", "line"],
     ),
@@ -197,7 +197,7 @@ const workDay: Gathering = {
       "I can plant and look after the beds.",
       [
         { date: "2026-11-21", start: "10:00", end: "16:00" },
-        { date: "2026-11-29", start: "10:00", end: "14:00" },
+        { date: "2026-11-28", start: "10:00", end: "14:00" },
       ],
       ["plant-ng", "repot", "blueberries", "rotate-crops", "rotate-nw"],
     ),
@@ -251,8 +251,8 @@ const welcome: Gathering = {
       "Jonah",
       "Evenings after work suit me.",
       [
-        { date: "2026-12-03", start: "17:00", end: "19:00" },
-        { date: "2026-12-10", start: "18:00", end: "21:00" },
+        { date: "2026-12-04", start: "17:00", end: "19:00" },
+        { date: "2026-12-11", start: "18:00", end: "21:00" },
       ],
       ["meet-kitchen"],
     ),
@@ -261,7 +261,7 @@ const welcome: Gathering = {
       "Ruth",
       "I like the front room if it is quiet.",
       [
-        { date: "2026-12-03", start: "17:00", end: "20:00" },
+        { date: "2026-12-04", start: "17:00", end: "20:00" },
         { date: "2026-12-08", start: "17:00", end: "19:00" },
       ],
       ["meet-front"],
@@ -271,8 +271,8 @@ const welcome: Gathering = {
       "Luis",
       "The kitchen table works for me.",
       [
-        { date: "2026-12-03", start: "18:00", end: "20:00" },
-        { date: "2026-12-10", start: "17:00", end: "21:00" },
+        { date: "2026-12-04", start: "18:00", end: "20:00" },
+        { date: "2026-12-11", start: "17:00", end: "21:00" },
       ],
       ["meet-kitchen"],
     ),

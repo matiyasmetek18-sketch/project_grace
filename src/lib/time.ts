@@ -50,6 +50,29 @@ export function isISODate(value: string): boolean {
   return formatISODate(parseISODate(value)) === value;
 }
 
+/** Sunday and Thursday are not days people can offer. */
+export function isClosedDay(date: string): boolean {
+  const day = parseISODate(date).getDay();
+  return day === 0 || day === 4;
+}
+
+/** Why a single chosen day cannot be added, or null when it can. */
+export function dayChoiceMessage(date: string, existing: string[]): string | null {
+  if (!isISODate(date)) return "Choose a day.";
+  const day = parseISODate(date).getDay();
+  if (day === 0) return "Sundays are not on this list. Choose another day.";
+  if (day === 4) return "Thursdays are not on this list. Choose another day.";
+  if (existing.includes(date)) return "That day is already on your list.";
+  return null;
+}
+
+/** Null when the last day is the first day or later. */
+export function dayOrderMessage(first: string, last: string): string | null {
+  if (!isISODate(first) || !isISODate(last)) return "Choose a real first day and last day.";
+  if (last < first) return "The last day has to be the same day as the first, or a later day.";
+  return null;
+}
+
 export function dateSpanDays(start: string, end: string): number {
   const a = parseISODate(start).getTime();
   const b = parseISODate(end).getTime();
@@ -67,6 +90,11 @@ export function eachDate(start: string, end: string): string[] {
     cur.setDate(cur.getDate() + 1);
   }
   return out;
+}
+
+/** Gathering calendars leave Sunday and Thursday off. */
+export function eachGatheringDate(start: string, end: string): string[] {
+  return eachDate(start, end).filter((iso) => !isClosedDay(iso));
 }
 
 export function eachSlotStart(dayStart: string, dayEnd: string): string[] {
@@ -116,10 +144,20 @@ export function weekdayIndex(iso: string): number {
   return parseISODate(iso).getDay();
 }
 
+/** Monday-start weeks, in the order the dates appear. Sundays are omitted when the list already skipped them. */
 export function groupWeeks(dates: string[]): string[][] {
-  const weeks: string[][] = [];
-  for (let i = 0; i < dates.length; i += 7) weeks.push(dates.slice(i, i + 7));
-  return weeks;
+  const groups = new Map<string, string[]>();
+  for (const iso of dates) {
+    const date = parseISODate(iso);
+    const day = date.getDay();
+    const monday = new Date(date);
+    monday.setDate(date.getDate() + (day === 0 ? -6 : 1 - day));
+    const key = formatISODate(monday);
+    const list = groups.get(key) ?? [];
+    list.push(iso);
+    groups.set(key, list);
+  }
+  return [...groups.values()];
 }
 
 export function formatFullDate(iso: string): string {

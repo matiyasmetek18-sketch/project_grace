@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import type { Area, Gathering, Task, TimeRange } from "../types";
 import {
-  eachDate,
+  eachGatheringDate,
   eachSlotStart,
   formatDayNum,
   formatMonthDay,
@@ -36,7 +36,10 @@ export function AvailabilityForm({
   tasks: Task[];
   onSubmit: (draft: Draft) => void;
 }) {
-  const dates = useMemo(() => eachDate(event.windowStart, event.windowEnd), [event.windowStart, event.windowEnd]);
+  const dates = useMemo(
+    () => eachGatheringDate(event.windowStart, event.windowEnd),
+    [event.windowStart, event.windowEnd],
+  );
   const weeks = useMemo(() => groupWeeks(dates), [dates]);
   const presets = useMemo(() => timePresets(event.dayStart, event.dayEnd), [event.dayStart, event.dayEnd]);
   const startOptions = useMemo(() => eachSlotStart(event.dayStart, event.dayEnd), [event.dayStart, event.dayEnd]);
@@ -193,14 +196,11 @@ export function AvailabilityForm({
       <fieldset className="field" id="day-picker">
         <legend>When you can come</legend>
         <p className="field-help" id="day-help">
-          Tap the days, then choose a time. You can add more than one stretch.
+          Tap a day, then choose a time. Sundays are left off. You can add more than one stretch.
         </p>
         <div className="day-shortcuts">
           <button type="button" onClick={() => toggleWeekday(6)}>
             All Saturdays
-          </button>
-          <button type="button" onClick={() => toggleWeekday(0)}>
-            All Sundays
           </button>
           <button type="button" onClick={() => setSelected(new Set())}>
             Clear days
