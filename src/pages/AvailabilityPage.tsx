@@ -189,6 +189,7 @@ export function AvailabilityPage() {
               <span>A day you added. You can remove it if it is the wrong one.</span>
             </li>
             <li>
+              <span className="closed-mark" aria-hidden="true" />
               <span className="legend-note">Sundays and Thursdays are not accepted.</span>
             </li>
           </ul>
@@ -196,7 +197,7 @@ export function AvailabilityPage() {
           {orderedDays.length > 0 && (
             <ul className="chosen-days">
               {orderedDays.map((date, index) => (
-                <li key={date}>
+                <li key={date} className="chosen-day">
                   <span className="day day-key is-on" aria-hidden="true">
                     <span className="day-wd">{formatWeekdayShort(date)}</span>
                     <span className="day-num">{formatDayNum(date)}</span>
@@ -367,7 +368,7 @@ export function AvailabilityPage() {
       <section className="saved" aria-labelledby="saved-title">
         <h2 id="saved-title">Saved on this device</h2>
         {entries.length === 0 ? (
-          <p>No one has added times in this browser yet.</p>
+          <p className="saved-empty">No one has added times in this browser yet.</p>
         ) : (
           <ul className="saved-list">
             {entries.map((entry) => (
