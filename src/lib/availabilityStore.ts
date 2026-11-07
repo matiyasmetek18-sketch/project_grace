@@ -1,6 +1,6 @@
 import type { TimeRange } from "../types";
 import { uid } from "./id";
-import { isHHMM, isISODate, mergeRanges, minutes } from "./time";
+import { isHHMM, isISODate, keepSeparateRanges, minutes } from "./time";
 
 export const AVAILABILITY_KEY = "grace.availability.v1";
 
@@ -39,7 +39,7 @@ export function sanitizeEntries(value: unknown): AvailabilityEntry[] {
       const entry = item as Partial<AvailabilityEntry>;
       if (typeof entry.name !== "string") return null;
       const name = entry.name.trim().slice(0, 60);
-      const ranges = Array.isArray(entry.ranges) ? mergeRanges(entry.ranges.filter(isRange)).slice(0, 40) : [];
+      const ranges = Array.isArray(entry.ranges) ? keepSeparateRanges(entry.ranges.filter(isRange)).slice(0, 40) : [];
       if (!name || ranges.length === 0) return null;
       return {
         id: typeof entry.id === "string" ? entry.id.slice(0, 80) : uid("person"),

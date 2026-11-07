@@ -7,6 +7,7 @@ import {
   eachDate,
   eachGatheringDate,
   isISODate,
+  keepSeparateRanges,
   mergeRanges,
   timePresets,
 } from "./time";
@@ -45,6 +46,21 @@ describe("dates and hours", () => {
     );
     expect(dayOrderMessage("2026-11-07", "2026-11-07")).toBeNull();
     expect(dayOrderMessage("2026-11-07", "2026-11-21")).toBeNull();
+  });
+
+  it("keeps morning and afternoon as separate windows", () => {
+    expect(
+      keepSeparateRanges([
+        { date: "2026-11-07", start: "08:00", end: "12:00" },
+        { date: "2026-11-07", start: "12:00", end: "16:00" },
+        { date: "2026-11-07", start: "09:00", end: "11:00" },
+        { date: "2026-11-07", start: "08:00", end: "12:00" },
+      ]),
+    ).toEqual([
+      { date: "2026-11-07", start: "08:00", end: "12:00" },
+      { date: "2026-11-07", start: "09:00", end: "11:00" },
+      { date: "2026-11-07", start: "12:00", end: "16:00" },
+    ]);
   });
 
   it("merges touching hours on the same day", () => {

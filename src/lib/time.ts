@@ -113,6 +113,24 @@ export function compareRanges(a: TimeRange, b: TimeRange): number {
   return minutes(a.start) - minutes(b.start);
 }
 
+/**
+ * Keep each window as its own entry. Touching windows stay separate so Morning
+ * and Afternoon can both be selected, and a custom time is not swallowed.
+ */
+export function keepSeparateRanges(ranges: TimeRange[]): TimeRange[] {
+  const seen = new Set<string>();
+  const out: TimeRange[] = [];
+  for (const range of [...ranges].sort(compareRanges)) {
+    if (!isISODate(range.date) || !isHHMM(range.start) || !isHHMM(range.end)) continue;
+    if (minutes(range.end) <= minutes(range.start)) continue;
+    const key = `${range.date}|${range.start}|${range.end}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ date: range.date, start: range.start, end: range.end });
+  }
+  return out;
+}
+
 /** Join ranges on the same day that touch or overlap. */
 export function mergeRanges(ranges: TimeRange[]): TimeRange[] {
   const byDate = new Map<string, TimeRange[]>();

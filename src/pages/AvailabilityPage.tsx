@@ -11,7 +11,7 @@ import {
   formatTime,
   formatWeekdayShort,
   halfHours,
-  mergeRanges,
+  keepSeparateRanges,
   minutes,
 } from "../lib/time";
 import { useDocumentTitle } from "../useDocumentTitle";
@@ -35,7 +35,7 @@ function copyHoursOnto(date: string, ranges: TimeRange[]): TimeRange[] {
   const pairs = new Map<string, { start: string; end: string }>();
   for (const range of ranges) pairs.set(`${range.start}-${range.end}`, { start: range.start, end: range.end });
   const added = [...pairs.values()].map((pair) => ({ date, ...pair }));
-  return mergeRanges([...ranges, ...added]);
+  return keepSeparateRanges([...ranges, ...added]);
 }
 
 export function AvailabilityPage() {
@@ -119,7 +119,7 @@ export function AvailabilityPage() {
     );
     const nextRanges = on
       ? ready.ranges.filter((range) => !(ready.dates.includes(range.date) && range.start === start && range.end === end))
-      : mergeRanges([...ready.ranges, ...ready.dates.map((date) => ({ date, start, end }))]);
+      : keepSeparateRanges([...ready.ranges, ...ready.dates.map((date) => ({ date, start, end }))]);
     setDays(ready.dates);
     setRanges(nextRanges);
     rememberDraft(ready.dates);
@@ -140,7 +140,7 @@ export function AvailabilityPage() {
       return;
     }
     setDays(ready.dates);
-    setRanges(mergeRanges([...ready.ranges, ...ready.dates.map((date) => ({ date, start, end }))]));
+    setRanges(keepSeparateRanges([...ready.ranges, ...ready.dates.map((date) => ({ date, start, end }))]));
     rememberDraft(ready.dates);
     setDayError("");
     setHint("");
@@ -169,7 +169,7 @@ export function AvailabilityPage() {
       id: uid("person"),
       name: name.trim().slice(0, 60),
       note: note.trim().slice(0, 240),
-      ranges: mergeRanges(ranges),
+      ranges: keepSeparateRanges(ranges),
       createdAt: new Date().toISOString(),
     };
     const next = [entry, ...entries];
