@@ -47,6 +47,7 @@ describe("seeded gatherings", () => {
       for (const volunteer of event.volunteers) {
         for (const range of volunteer.ranges) {
           expect(weekdayIndex(range.date)).not.toBe(0);
+          expect(weekdayIndex(range.date)).not.toBe(4);
         }
       }
     }

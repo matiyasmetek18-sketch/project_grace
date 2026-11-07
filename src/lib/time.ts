@@ -50,10 +50,18 @@ export function isISODate(value: string): boolean {
   return formatISODate(parseISODate(value)) === value;
 }
 
+/** Sunday and Thursday are not days people can offer. */
+export function isClosedDay(date: string): boolean {
+  const day = parseISODate(date).getDay();
+  return day === 0 || day === 4;
+}
+
 /** Why a single chosen day cannot be added, or null when it can. */
 export function dayChoiceMessage(date: string, existing: string[]): string | null {
   if (!isISODate(date)) return "Choose a day.";
-  if (parseISODate(date).getDay() === 0) return "Sundays are not on this list. Choose another day.";
+  const day = parseISODate(date).getDay();
+  if (day === 0) return "Sundays are not on this list. Choose another day.";
+  if (day === 4) return "Thursdays are not on this list. Choose another day.";
   if (existing.includes(date)) return "That day is already on your list.";
   return null;
 }
@@ -84,9 +92,9 @@ export function eachDate(start: string, end: string): string[] {
   return out;
 }
 
-/** Gathering calendars leave Sunday off. */
+/** Gathering calendars leave Sunday and Thursday off. */
 export function eachGatheringDate(start: string, end: string): string[] {
-  return eachDate(start, end).filter((iso) => parseISODate(iso).getDay() !== 0);
+  return eachDate(start, end).filter((iso) => !isClosedDay(iso));
 }
 
 export function eachSlotStart(dayStart: string, dayEnd: string): string[] {

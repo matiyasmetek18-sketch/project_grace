@@ -34,7 +34,7 @@ npm run preview
 
 ## What is saved
 
-Grace keeps what you add in **this browser only**, under the localStorage key `grace.availability.v1`. A refresh keeps it. Nothing is sent to a server, so another phone has its own copy. People add one day at a time. Sundays are not accepted, and a day already on the list cannot be added again.
+Grace keeps what you add in **this browser only**, under the localStorage key `grace.availability.v1`. A refresh keeps it. Nothing is sent to a server, so another phone has its own copy. People add one day at a time. Sundays and Thursdays are not accepted, and a day already on the list cannot be added again.
 
 Saved on this device:
 

@@ -22,13 +22,19 @@ describe("dates and hours", () => {
     expect(dateSpanDays("2026-11-14", "2026-12-06")).toBe(22);
   });
 
-  it("leaves Sunday off gathering calendars", () => {
-    expect(eachGatheringDate("2026-11-14", "2026-11-16")).toEqual(["2026-11-14", "2026-11-16"]);
+  it("leaves Sunday and Thursday off gathering calendars", () => {
+    expect(eachGatheringDate("2026-11-11", "2026-11-16")).toEqual([
+      "2026-11-11",
+      "2026-11-13",
+      "2026-11-14",
+      "2026-11-16",
+    ]);
   });
 
-  it("accepts one real weekday and refuses a blank, a Sunday, or a duplicate", () => {
+  it("accepts one real weekday and refuses a blank, a Sunday, a Thursday, or a duplicate", () => {
     expect(dayChoiceMessage("", [])).toBe("Choose a day.");
     expect(dayChoiceMessage("2026-11-08", [])).toBe("Sundays are not on this list. Choose another day.");
+    expect(dayChoiceMessage("2026-11-12", [])).toBe("Thursdays are not on this list. Choose another day.");
     expect(dayChoiceMessage("2026-11-07", ["2026-11-07"])).toBe("That day is already on your list.");
     expect(dayChoiceMessage("2026-11-09", ["2026-11-07"])).toBeNull();
   });

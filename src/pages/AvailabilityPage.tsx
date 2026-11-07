@@ -27,7 +27,7 @@ const PRESETS = [
 
 function nextOpenDay(today = new Date()): string {
   const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  if (date.getDay() === 0) date.setDate(date.getDate() + 1);
+  while (date.getDay() === 0 || date.getDay() === 4) date.setDate(date.getDate() + 1);
   return formatISODate(date);
 }
 
@@ -178,7 +178,7 @@ export function AvailabilityPage() {
         <fieldset className="field">
           <legend>When you can come</legend>
           <p className="field-help" id="day-help">
-            Start with one day. Add more only if you need them. Sundays are not on this list.
+            Start with one day. Add more only if you need them. Sundays and Thursdays are not on this list.
           </p>
           <ul className="calendar-legend" aria-label="Day key">
             <li>
@@ -189,7 +189,7 @@ export function AvailabilityPage() {
               <span>A day you added. You can remove it if it is the wrong one.</span>
             </li>
             <li>
-              <span className="legend-note">Sundays are not accepted.</span>
+              <span className="legend-note">Sundays and Thursdays are not accepted.</span>
             </li>
           </ul>
 

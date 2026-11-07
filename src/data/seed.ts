@@ -186,7 +186,7 @@ const workDay: Gathering = {
       "I can run the trimmer once it has line.",
       [
         { date: "2026-11-18", start: "15:00", end: "16:00" },
-        { date: "2026-11-19", start: "13:00", end: "16:00" },
+        { date: "2026-11-20", start: "13:00", end: "16:00" },
         { date: "2026-11-21", start: "08:00", end: "12:00" },
       ],
       ["ww-north", "ww-plat", "ww-orch", "pavers", "line"],
@@ -251,8 +251,8 @@ const welcome: Gathering = {
       "Jonah",
       "Evenings after work suit me.",
       [
-        { date: "2026-12-03", start: "17:00", end: "19:00" },
-        { date: "2026-12-10", start: "18:00", end: "21:00" },
+        { date: "2026-12-04", start: "17:00", end: "19:00" },
+        { date: "2026-12-11", start: "18:00", end: "21:00" },
       ],
       ["meet-kitchen"],
     ),
@@ -261,7 +261,7 @@ const welcome: Gathering = {
       "Ruth",
       "I like the front room if it is quiet.",
       [
-        { date: "2026-12-03", start: "17:00", end: "20:00" },
+        { date: "2026-12-04", start: "17:00", end: "20:00" },
         { date: "2026-12-08", start: "17:00", end: "19:00" },
       ],
       ["meet-front"],
@@ -271,8 +271,8 @@ const welcome: Gathering = {
       "Luis",
       "The kitchen table works for me.",
       [
-        { date: "2026-12-03", start: "18:00", end: "20:00" },
-        { date: "2026-12-10", start: "17:00", end: "21:00" },
+        { date: "2026-12-04", start: "18:00", end: "20:00" },
+        { date: "2026-12-11", start: "17:00", end: "21:00" },
       ],
       ["meet-kitchen"],
     ),
