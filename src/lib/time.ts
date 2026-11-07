@@ -50,6 +50,14 @@ export function isISODate(value: string): boolean {
   return formatISODate(parseISODate(value)) === value;
 }
 
+/** Why a single chosen day cannot be added, or null when it can. */
+export function dayChoiceMessage(date: string, existing: string[]): string | null {
+  if (!isISODate(date)) return "Choose a day.";
+  if (parseISODate(date).getDay() === 0) return "Sundays are not on this list. Choose another day.";
+  if (existing.includes(date)) return "That day is already on your list.";
+  return null;
+}
+
 /** Null when the last day is the first day or later. */
 export function dayOrderMessage(first: string, last: string): string | null {
   if (!isISODate(first) || !isISODate(last)) return "Choose a real first day and last day.";

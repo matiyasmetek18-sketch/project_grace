@@ -1688,6 +1688,45 @@ input[type="radio"] {
   width: 3.1rem;
   min-height: 3.4rem;
   pointer-events: none;
+  flex: none;
+}
+
+.chosen-days {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.chosen-days li,
+.day-add-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.chosen-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--russet);
+}
+
+.chosen-date {
+  display: block;
+  font-family: var(--serif);
+  font-size: 1.15rem;
+}
+
+.day-add-row input {
+  flex: 1;
+}
+
+.day-add {
+  margin-bottom: 0.4rem;
 }
 
 .hours-board {
@@ -1736,8 +1775,15 @@ input[type="radio"] {
     grid-template-columns: 1fr;
   }
 
-  .collector .join-submit .btn {
+  .collector .join-submit .btn,
+  .day-add-row .btn {
     width: 100%;
+  }
+
+  .day-add-row,
+  .chosen-days li {
+    align-items: stretch;
+    flex-wrap: wrap;
   }
 }
 

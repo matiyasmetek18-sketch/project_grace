@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dateSpanDays,
+  dayChoiceMessage,
   dayOrderMessage,
   defaultGatheringWindow,
   eachDate,
@@ -23,6 +24,13 @@ describe("dates and hours", () => {
 
   it("leaves Sunday off gathering calendars", () => {
     expect(eachGatheringDate("2026-11-14", "2026-11-16")).toEqual(["2026-11-14", "2026-11-16"]);
+  });
+
+  it("accepts one real weekday and refuses a blank, a Sunday, or a duplicate", () => {
+    expect(dayChoiceMessage("", [])).toBe("Choose a day.");
+    expect(dayChoiceMessage("2026-11-08", [])).toBe("Sundays are not on this list. Choose another day.");
+    expect(dayChoiceMessage("2026-11-07", ["2026-11-07"])).toBe("That day is already on your list.");
+    expect(dayChoiceMessage("2026-11-09", ["2026-11-07"])).toBeNull();
   });
 
   it("refuses a last day that comes before the first", () => {
