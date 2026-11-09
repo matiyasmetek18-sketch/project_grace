@@ -1,0 +1,14 @@
+name: Keep shared answers
+
+on:
+  schedule:
+    # A guest list is deleted after a few idle hours. This read keeps it.
+    - cron: "7,37 * * * *"
+  workflow_dispatch:
+
+jobs:
+  keep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read the shared list
+        run: curl -fsS "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7ad27cd2f39" -o /dev/null
