@@ -34,7 +34,7 @@ npm run preview
 
 ## What is saved
 
-Answers are stored in a shared public collection (a [crudcrud](https://crudcrud.com) list). Anyone who opens the page can read them and add their own. There is no account. People add one day at a time. Sundays and Thursdays are not accepted, and a day already on the list cannot be added again. The page also draws where those times overlap.
+Answers are stored in one shared public list. Anyone who opens the page can read them and add their own. There is no account. People add one day at a time. Sundays and Thursdays are not accepted, and a day already on the list cannot be added again. The page also draws where those times overlap.
 
 Saved on this device:
 

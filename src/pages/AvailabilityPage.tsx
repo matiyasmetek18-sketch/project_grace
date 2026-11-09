@@ -45,7 +45,7 @@ export function AvailabilityPage() {
   const suggested = useMemo(() => nextOpenDay(), []);
   const [entries, setEntries] = useState<AvailabilityEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saveError, setSaveError] = useState(false);
+  const [listProblem, setListProblem] = useState("");
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
   const [days, setDays] = useState<string[]>([]);
@@ -67,19 +67,22 @@ export function AvailabilityPage() {
         const shared = await fetchSharedAnswers();
         if (!stop) {
           setEntries(shared);
-          setSaveError(false);
+          setListProblem("");
         }
       } catch {
-        if (!stop) setSaveError(true);
+        if (!stop) setListProblem("The shared list did not load. Refresh the page and try again.");
       } finally {
         if (!stop) setLoading(false);
       }
     }
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 15000);
+    function onVisible() {
+      if (document.visibilityState === "visible") void refresh();
+    }
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       stop = true;
-      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
@@ -201,11 +204,10 @@ export function AvailabilityPage() {
     try {
       const saved = await publishSharedAnswer(entry);
       setEntries((current) => [saved, ...current.filter((item) => item.id !== entry.id)]);
-      setSaveError(false);
+      setListProblem("");
       setThanks(saved.name);
     } catch {
-      setSaveError(true);
-      setFormError("This answer did not reach the shared list. Try again in a moment.");
+      setFormError("This answer was not sent. Try again.");
       errorRef.current?.focus();
       return;
     }
@@ -237,12 +239,7 @@ export function AvailabilityPage() {
         )}
         {thanks && (
           <p className="banner" role="status">
-            Thank you, {thanks}. Your times are saved in this browser.
-          </p>
-        )}
-        {saveError && (
-          <p className="banner banner-warn" role="status">
-            This browser did not keep the latest change. It will last until you close the page.
+            Thank you, {thanks}. Anyone with this page can see your times.
           </p>
         )}
 
@@ -449,6 +446,11 @@ export function AvailabilityPage() {
       <section className="saved" aria-labelledby="saved-title">
         <h2 id="saved-title">Everyone's answers</h2>
         <p className="field-help">Anyone who opens this page sees the same list.</p>
+        {listProblem && (
+          <p className="banner banner-warn" role="alert">
+            {listProblem}
+          </p>
+        )}
         {loading ? (
           <p className="saved-empty">Loading answers…</p>
         ) : entries.length === 0 ? (
@@ -473,9 +475,9 @@ export function AvailabilityPage() {
                     void removeSharedAnswer(entry.id)
                       .then(() => {
                         setEntries((current) => current.filter((item) => item.id !== entry.id));
-                        setSaveError(false);
+                        setListProblem("");
                       })
-                      .catch(() => setSaveError(true));
+                      .catch(() => setListProblem("That answer was not removed. Try again."));
                   }}
                 >
                   Remove {entry.name}
