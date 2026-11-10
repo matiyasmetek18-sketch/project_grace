@@ -1,5 +1,6 @@
 import type { AvailabilityEntry } from "./availabilityStore";
-import { sanitizeEntries } from "./availabilityStore";
+import { sameOffer, sanitizeEntries } from "./availabilityStore";
+import { offeredDayMessage } from "./time";
 
 /**
  * Shared list for everyone who opens the page.
@@ -11,7 +12,7 @@ const COLLECTION = "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7a
 type StoredAnswer = Partial<AvailabilityEntry> & { _id?: string };
 
 function echoedId(body: unknown): string {
-  if (!body || typeof body !== "object") return "";
+  if (!body || typeof body !== "object" || Array.isArray(body)) return "";
   const record = body as StoredAnswer;
   return typeof record._id === "string" ? record._id.trim() : "";
 }
@@ -26,6 +27,10 @@ export async function fetchSharedAnswers(): Promise<AvailabilityEntry[]> {
 }
 
 export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<AvailabilityEntry> {
+  for (const range of entry.ranges) {
+    const message = offeredDayMessage(range.date);
+    if (message) throw new Error(message);
+  }
   const response = await fetch(COLLECTION, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -41,16 +46,22 @@ export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<Ava
   try {
     body = await response.json();
   } catch {
-    return entry;
+    body = null;
   }
-  if (!body || typeof body !== "object" || Array.isArray(body)) return entry;
-  const [saved] = sanitizeEntries([body]);
-  if (saved) return saved;
-  const serverId = echoedId(body);
-  return serverId ? { ...entry, id: serverId } : entry;
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    const [saved] = sanitizeEntries([body]);
+    if (saved) return saved;
+    const serverId = echoedId(body);
+    if (serverId) return { ...entry, id: serverId, fromServer: true };
+  }
+  const shared = await fetchSharedAnswers();
+  const match = shared.find((item) => sameOffer(item, entry));
+  if (match) return match;
+  return { ...entry, fromServer: false };
 }
 
 export async function removeSharedAnswer(id: string): Promise<void> {
   const response = await fetch(`${COLLECTION}/id/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (!response.ok && response.status !== 404) throw new Error("The shared list did not remove that answer.");
+  if (response.status === 404) throw new Error("That answer is not on the shared list.");
+  if (!response.ok) throw new Error("The shared list did not remove that answer.");
 }

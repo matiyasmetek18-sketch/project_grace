@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { CommonTimes } from "../components/CommonTimes";
 import type { TimeRange } from "../types";
-import type { AvailabilityEntry } from "../lib/availabilityStore";
+import { sameOffer, type AvailabilityEntry } from "../lib/availabilityStore";
 import { fetchSharedAnswers, publishSharedAnswer, removeSharedAnswer } from "../lib/sharedAnswers";
 import { uid } from "../lib/id";
 import {
@@ -61,6 +61,9 @@ export function AvailabilityPage() {
   const [formError, setFormError] = useState("");
   const [formErrorTick, setFormErrorTick] = useState(0);
   const [thanks, setThanks] = useState("");
+  const [thanksTick, setThanksTick] = useState(0);
+  const [listFocusTick, setListFocusTick] = useState(0);
+  const [removedNotice, setRemovedNotice] = useState("");
   const [saving, setSaving] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<AvailabilityEntry | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -74,6 +77,8 @@ export function AvailabilityPage() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const savedTitleRef = useRef<HTMLHeadingElement>(null);
+  const thanksRef = useRef<HTMLParagraphElement>(null);
+  const focusAfterLoad = useRef(false);
   const afterRemoveFocus = useRef<"trigger" | "list" | null>(null);
   const todayIso = formatISODate(new Date());
 
@@ -82,9 +87,16 @@ export function AvailabilityPage() {
     try {
       const shared = await fetchSharedAnswers();
       if (requestId !== listRequest.current) return;
-      setEntries(shared);
+      setEntries((current) => {
+        const pending = current.filter((item) => !item.fromServer && !shared.some((row) => sameOffer(row, item)));
+        return [...pending, ...shared];
+      });
       setListProblem("");
       setLoadFailed(false);
+      if (focusAfterLoad.current) {
+        focusAfterLoad.current = false;
+        setListFocusTick((tick) => tick + 1);
+      }
     } catch {
       if (requestId !== listRequest.current) return;
       setListProblem("The shared list did not load.");
@@ -119,6 +131,15 @@ export function AvailabilityPage() {
   useEffect(() => {
     if (formError) errorRef.current?.focus();
   }, [formError, formErrorTick]);
+
+  useEffect(() => {
+    if (thanks) thanksRef.current?.focus();
+  }, [thanks, thanksTick]);
+
+  useEffect(() => {
+    if (listFocusTick === 0) return;
+    savedTitleRef.current?.focus();
+  }, [listFocusTick]);
 
   useEffect(() => {
     if (dayError) dayErrorRef.current?.focus();
@@ -237,6 +258,7 @@ export function AvailabilityPage() {
   }
 
   function retryLoad() {
+    focusAfterLoad.current = true;
     setLoading(true);
     setListProblem("");
     setLoadFailed(false);
@@ -264,11 +286,13 @@ export function AvailabilityPage() {
       await removeSharedAnswer(entry.id);
       setEntries((current) => current.filter((item) => item.id !== entry.id));
       setListProblem("");
+      setRemovedNotice(`Removed ${entry.name}`);
       afterRemoveFocus.current = "list";
       dialogRef.current?.close();
       setPendingRemove(null);
-    } catch {
-      setListProblem("That answer was not removed. Try again.");
+    } catch (error) {
+      setRemovedNotice("");
+      setListProblem(error instanceof Error ? error.message : "That answer was not removed. Try again.");
       afterRemoveFocus.current = "trigger";
       dialogRef.current?.close();
       setPendingRemove(null);
@@ -295,7 +319,8 @@ export function AvailabilityPage() {
       return;
     }
     const entry: AvailabilityEntry = {
-      id: uid("person"),
+      id: `pending-${uid("person")}`,
+      fromServer: false,
       name: name.trim().slice(0, 60),
       note: note.trim().slice(0, 240),
       ranges: keepSeparateRanges(ranges),
@@ -305,12 +330,10 @@ export function AvailabilityPage() {
     setSaving(true);
     try {
       const saved = await publishSharedAnswer(entry);
-      listRequest.current += 1;
-      setLoading(false);
-      setEntries((current) => [saved, ...current.filter((item) => item.id !== saved.id && item.id !== entry.id)]);
-      setListProblem("");
-      setLoadFailed(false);
+      setEntries((current) => [saved, ...current.filter((item) => item.id !== saved.id && !sameOffer(item, saved))]);
       setThanks(saved.name);
+      setThanksTick((tick) => tick + 1);
+      void loadList();
       setName("");
       setNote("");
       setDays([]);
@@ -345,7 +368,7 @@ export function AvailabilityPage() {
           </p>
         )}
         {thanks && (
-          <p className="banner" role="status">
+          <p id="thanks" className="banner" role="status" tabIndex={-1} ref={thanksRef}>
             Thank you, {thanks}. Anyone with this page can see your times.
           </p>
         )}
@@ -543,7 +566,7 @@ export function AvailabilityPage() {
         <div className="join-submit">
           <button
             type="submit"
-            className="btn btn-primary"
+            className={saving ? "btn btn-primary is-busy" : "btn btn-primary"}
             disabled={saving}
             aria-describedby={sendInvalid ? "form-error" : undefined}
           >
@@ -564,6 +587,9 @@ export function AvailabilityPage() {
           Everyone's answers
         </h2>
         <p className="field-help">Anyone who opens this page sees the same list.</p>
+        <p className="sr-only" role="status">
+          {removedNotice}
+        </p>
         {listProblem && (
           <div className="banner banner-warn" role="alert">
             <p>{listProblem}</p>
@@ -591,9 +617,11 @@ export function AvailabilityPage() {
                     </li>
                   ))}
                 </ul>
-                <button type="button" className="text-btn" onClick={(event) => askRemove(entry, event)}>
-                  Remove {entry.name}
-                </button>
+                {entry.fromServer && (
+                  <button type="button" className="text-btn" onClick={(event) => askRemove(entry, event)}>
+                    Remove {entry.name}
+                  </button>
+                )}
               </li>
             ))}
           </ul>
@@ -603,8 +631,6 @@ export function AvailabilityPage() {
       <dialog
         ref={dialogRef}
         className="sheet"
-        role="dialog"
-        aria-modal="true"
         aria-labelledby="remove-title"
         aria-describedby="remove-copy"
         onCancel={(event) => {
@@ -641,10 +667,15 @@ export function AvailabilityPage() {
             <h2 id="remove-title">Remove {pendingRemove.name}?</h2>
             <p id="remove-copy">{pendingRemove.name}&apos;s answer will be taken off the shared list.</p>
             <div className="dialog-actions">
-              <button ref={cancelButtonRef} type="button" className="btn btn-ghost" onClick={cancelRemove}>
+              <button ref={cancelButtonRef} type="button" className="btn btn-ghost" disabled={removing} onClick={cancelRemove}>
                 Cancel
               </button>
-              <button type="button" className="btn" disabled={removing} onClick={() => void confirmRemove()}>
+              <button
+                type="button"
+                className={removing ? "btn is-busy" : "btn"}
+                disabled={removing}
+                onClick={() => void confirmRemove()}
+              >
                 {removing ? "Removing…" : `Remove ${pendingRemove.name}`}
               </button>
             </div>

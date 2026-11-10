@@ -284,6 +284,9 @@ button.btn,
 .btn:disabled,
 button:disabled {
   opacity: 1;
+}
+
+button.is-busy:disabled {
   cursor: wait;
 }
 
@@ -1640,10 +1643,7 @@ input[type="radio"] {
 
   .btn:hover,
   .day:hover,
-  .preset:hover,
-  .plot:hover,
-  .room:hover,
-  .event-card:hover {
+  .preset:hover {
     transform: none;
   }
 }
@@ -2071,10 +2071,7 @@ input[type="radio"] {
 
   .btn:hover,
   .day:hover,
-  .preset:hover,
-  .plot:hover,
-  .room:hover,
-  .event-card:hover {
+  .preset:hover {
     transform: none;
   }
 }

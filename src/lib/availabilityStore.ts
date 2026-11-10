@@ -1,11 +1,14 @@
 import type { TimeRange } from "../types";
-import { uid } from "./id";
-import { isHHMM, isISODate, keepSeparateRanges, minutes } from "./time";
+import { isClosedDay, isHHMM, isISODate, keepSeparateRanges, minutes } from "./time";
+
+const CREATED_AT_SKEW_MS = 5 * 60 * 1000;
 
 export const AVAILABILITY_KEY = "grace.availability.v1";
 
 export type AvailabilityEntry = {
   id: string;
+  /** True when `id` is the server `_id`. A claimed client id is not removable. */
+  fromServer: boolean;
   name: string;
   note: string;
   ranges: TimeRange[];
@@ -28,32 +31,64 @@ function safeLocal(): StorageLike | null {
 function isRange(value: unknown): value is TimeRange {
   if (!value || typeof value !== "object") return false;
   const range = value as TimeRange;
-  return isISODate(range.date) && isHHMM(range.start) && isHHMM(range.end) && minutes(range.end) > minutes(range.start);
+  return (
+    isISODate(range.date) &&
+    !isClosedDay(range.date) &&
+    isHHMM(range.start) &&
+    isHHMM(range.end) &&
+    minutes(range.end) > minutes(range.start)
+  );
 }
 
-export function sanitizeEntries(value: unknown): AvailabilityEntry[] {
+/** Milliseconds for a usable createdAt, or null when it is missing, invalid, or too far in the future. */
+export function createdAtMillis(value: unknown, now = Date.now()): number | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const parsed = Date.parse(value);
+  if (!Number.isFinite(parsed)) return null;
+  if (parsed > now + CREATED_AT_SKEW_MS) return null;
+  return parsed;
+}
+
+export function sameOffer(a: AvailabilityEntry, b: AvailabilityEntry): boolean {
+  if (a.name !== b.name || a.note !== b.note || a.ranges.length !== b.ranges.length) return false;
+  return a.ranges.every((range, index) => {
+    const other = b.ranges[index];
+    return range.date === other.date && range.start === other.start && range.end === other.end;
+  });
+}
+
+export function sanitizeEntries(value: unknown, now = Date.now()): AvailabilityEntry[] {
   if (!Array.isArray(value)) return [];
-  const entries = value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const entry = item as Partial<AvailabilityEntry> & { _id?: unknown };
-      if (typeof entry.name !== "string") return null;
-      const name = entry.name.trim().slice(0, 60);
-      const ranges = Array.isArray(entry.ranges) ? keepSeparateRanges(entry.ranges.filter(isRange)).slice(0, 40) : [];
-      if (!name || ranges.length === 0) return null;
-      const serverId = typeof entry._id === "string" ? entry._id.trim().slice(0, 80) : "";
-      const clientId = typeof entry.id === "string" ? entry.id.trim().slice(0, 80) : "";
-      return {
-        id: serverId || clientId || uid("person"),
+  const ranked: { entry: AvailabilityEntry; sortKey: number | null }[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
+    const entry = item as Partial<AvailabilityEntry> & { _id?: unknown };
+    if (typeof entry.name !== "string") continue;
+    const name = entry.name.trim().slice(0, 60);
+    const ranges = Array.isArray(entry.ranges) ? keepSeparateRanges(entry.ranges.filter(isRange)).slice(0, 40) : [];
+    if (!name || ranges.length === 0) continue;
+    const serverId = typeof entry._id === "string" ? entry._id.trim().slice(0, 80) : "";
+    if (!serverId) continue;
+    const createdAt = typeof entry.createdAt === "string" ? entry.createdAt : "";
+    ranked.push({
+      sortKey: createdAtMillis(createdAt, now),
+      entry: {
+        id: serverId,
+        fromServer: true,
         name,
         note: typeof entry.note === "string" ? entry.note.slice(0, 240) : "",
         ranges,
-        createdAt: typeof entry.createdAt === "string" ? entry.createdAt : new Date(0).toISOString(),
-      };
-    })
-    .filter((entry): entry is AvailabilityEntry => entry !== null)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return entries.slice(0, 200);
+        createdAt,
+      },
+    });
+  }
+  ranked.sort((a, b) => {
+    if (a.sortKey == null && b.sortKey == null) return 0;
+    if (a.sortKey == null) return 1;
+    if (b.sortKey == null) return -1;
+    return b.sortKey - a.sortKey;
+  });
+  return ranked.slice(0, 200).map((item) => item.entry);
 }
 
 export function loadEntries(storage: StorageLike | null = safeLocal()): AvailabilityEntry[] {

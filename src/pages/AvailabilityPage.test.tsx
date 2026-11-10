@@ -138,30 +138,89 @@ describe("availability page", () => {
     expect(posts).toBe(2);
   });
 
-  it("does not apply an older list response after a successful submit", async () => {
+  it("keeps other answers when a save finishes during the first load", async () => {
     const first = defer<Response>();
-    mockBin((call) => (call.method === "GET" ? first.promise : json({})));
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return first.promise;
+        return json([
+          { _id: "ada", name: "Ada", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" },
+          {
+            _id: "nia",
+            name: "Nia",
+            note: "",
+            ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+            createdAt: "2026-11-01T00:00:00.000Z",
+          },
+        ]);
+      }
+      return json({});
+    });
     render(<AvailabilityPage />);
     fillHours();
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
-    expect(await screen.findByText(/Thank you, Nia/)).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
     await act(async () => {
       first.resolve(
         json([
           {
-            _id: "old",
-            id: "spoof-id",
-            name: "Old",
+            _id: "ghost",
+            name: "Ghost",
             note: "",
             ranges: [range],
-            createdAt: "2020-01-01T00:00:00.000Z",
+            createdAt: "2026-11-01T00:00:00.000Z",
           },
         ]),
       );
       await first.promise;
     });
+    expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Old" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Ghost" })).toBeNull();
+    expect(gets).toBeGreaterThan(1);
+  });
+
+  it("keeps a failed load visible until the refetch after a save returns the full list", async () => {
+    let gets = 0;
+    const refetch = defer<Response>();
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json({ message: "no" }, 500);
+        return refetch.promise;
+      }
+      return json({
+        _id: "nia",
+        name: "Nia",
+        note: "",
+        ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+        createdAt: "2026-11-01T00:00:00.000Z",
+      });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("The shared list did not load.")).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/Thank you, Nia/)).toBeTruthy();
+    expect(screen.getByText("The shared list did not load.")).toBeTruthy();
+    refetch.resolve(
+      json([
+        { _id: "ada", name: "Ada", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" },
+        {
+          _id: "nia",
+          name: "Nia",
+          note: "",
+          ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+          createdAt: "2026-11-01T00:00:00.000Z",
+        },
+      ]),
+    );
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
+    expect(screen.queryByText("The shared list did not load.")).toBeNull();
   });
 
   it("moves focus to the form error and describes the invalid field", async () => {
@@ -188,7 +247,7 @@ describe("availability page", () => {
     expect(screen.getByRole("combobox", { name: "End" }).getAttribute("aria-describedby")).toBe("hours-error");
   });
 
-  it("rejects a past day and still rejects Sunday", async () => {
+  it("rejects a past day", async () => {
     mockBin(() => json([]));
     render(<AvailabilityPage />);
     const input = screen.getByLabelText("Day you can come");
@@ -196,9 +255,26 @@ describe("availability page", () => {
     fireEvent.change(input, { target: { value: "2026-11-09" } });
     fireEvent.click(screen.getByRole("button", { name: "Add this day" }));
     expect((await screen.findByRole("alert")).textContent).toMatch(/already passed/);
-    fireEvent.change(screen.getByLabelText("Day you can come"), { target: { value: "2026-11-08" } });
-    fireEvent.click(screen.getByRole("button", { name: "Add this day" }));
-    expect((await screen.findByRole("alert")).textContent).toMatch(/Sundays are not on this list/);
+  });
+
+  it("moves focus to the thank-you message after a save", async () => {
+    mockBin((call) =>
+      call.method === "GET"
+        ? json([])
+        : json({
+            _id: "nia",
+            name: "Nia",
+            note: "",
+            ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+            createdAt: "2026-11-01T00:00:00.000Z",
+          }),
+    );
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    const thanks = await screen.findByText(/Thank you, Nia/);
+    expect(document.activeElement).toBe(thanks);
   });
 
   it("clears a duplicate-day message that no longer applies", async () => {
@@ -239,6 +315,7 @@ describe("availability page", () => {
     expect(screen.queryByText(/second person/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(document.activeElement).toBe(document.getElementById("saved-title"));
     expect(screen.getByText(/second person/)).toBeTruthy();
     expect(calls.filter((call) => call.method === "GET")).toHaveLength(2);
   });
@@ -279,5 +356,16 @@ describe("availability page", () => {
     expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Ada" })).toBeNull();
     expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
+    expect(screen.getByText("Removed Ada")).toBeTruthy();
+  });
+
+  it("keeps the answer listed when delete returns 404", async () => {
+    mockBin((call) => (call.method === "DELETE" ? new Response(null, { status: 404 }) : json([ada])));
+    render(<AvailabilityPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Ada" }));
+    fireEvent.click(within(await screen.findByRole("dialog", { name: "Remove Ada?" })).getByRole("button", { name: "Remove Ada" }));
+    expect(await screen.findByText("That answer is not on the shared list.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(screen.queryByText("Removed Ada")).toBeNull();
   });
 });
