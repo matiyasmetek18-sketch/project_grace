@@ -7,7 +7,9 @@ import { offeredDayMessage } from "./time";
  * A guest bin is removed after a few idle hours, so the keep-shared-answers
  * workflow reads this address on a schedule and the bin stays up.
  */
-const COLLECTION = "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7ad27cd2f39";
+const COLLECTION =
+  (typeof import.meta !== "undefined" && import.meta.env?.VITE_SHARED_ANSWERS_URL) ||
+  "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7ad27cd2f39";
 
 type StoredAnswer = Partial<AvailabilityEntry> & { _id?: string };
 
@@ -69,12 +71,23 @@ export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<Pub
   return { entry: { ...entry, fromServer: false }, confirmed: false };
 }
 
-export async function removeSharedAnswer(id: string): Promise<"removed" | "already-removed"> {
+export async function removeSharedAnswer(id: string, passphrase?: string): Promise<"removed" | "already-removed"> {
+  const headers: Record<string, string> = {};
+  const token =
+    passphrase ??
+    (typeof sessionStorage !== "undefined" ? sessionStorage.getItem("grace_organizer_passphrase") ?? "" : "");
+  if (token) headers["X-Organizer-Passphrase"] = token;
   let response: Response;
   try {
-    response = await fetch(`${COLLECTION}/id/${encodeURIComponent(id)}`, { method: "DELETE" });
+    response = await fetch(`${COLLECTION}/id/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers,
+    });
   } catch {
     throw new Error("The shared list could not be reached. Try again.");
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new Error("Only an organizer can remove answers from the shared list.");
   }
   if (response.status === 404) return "already-removed";
   if (!response.ok) throw new Error("The shared list did not remove that answer.");

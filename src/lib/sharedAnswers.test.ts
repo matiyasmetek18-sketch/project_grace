@@ -109,6 +109,24 @@ describe("shared answers", () => {
     await expect(removeSharedAnswer("server-1")).resolves.toBe("already-removed");
   });
 
+  it("reports an unauthorized delete with an organizer message", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 401 })));
+    await expect(removeSharedAnswer("server-1")).rejects.toThrow(/Only an organizer can remove answers/);
+  });
+
+  it("attaches the organizer passphrase header when provided", async () => {
+    let sentHeaders: HeadersInit | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url, init) => {
+        sentHeaders = init?.headers;
+        return new Response(null, { status: 200 });
+      }),
+    );
+    await expect(removeSharedAnswer("server-1", "secret-pass")).resolves.toBe("removed");
+    expect(sentHeaders).toEqual(expect.objectContaining({ "X-Organizer-Passphrase": "secret-pass" }));
+  });
+
   it("uses a plain message when delete cannot reach the list", async () => {
     vi.stubGlobal(
       "fetch",
