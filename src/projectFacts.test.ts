@@ -8,7 +8,7 @@ describe("published facts", () => {
   it("pins the patched react-router-dom release and the jsdom node range", () => {
     const pkg = JSON.parse(pkgRaw) as { dependencies: Record<string, string>; engines: { node: string } };
     expect(pkg.dependencies["react-router-dom"]).toBe("7.18.5");
-    expect(pkg.engines.node).toBe("^22.22.2 || ^24.15.0 || >=26.0.0");
+    expect(pkg.engines.node).toBe("^20.19.0 || ^22.13.0 || >=24.0.0");
   });
 
   it("deploys Pages only from main and checks pull requests without deploying", () => {

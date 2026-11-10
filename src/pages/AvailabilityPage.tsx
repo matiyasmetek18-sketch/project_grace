@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { CommonTimes } from "../components/CommonTimes";
 import type { TimeRange } from "../types";
-import { sameOffer, type AvailabilityEntry } from "../lib/availabilityStore";
+import { countsInCommonTimes, sameOffer, type AvailabilityEntry } from "../lib/availabilityStore";
 import { fetchSharedAnswers, publishSharedAnswer, removeSharedAnswer } from "../lib/sharedAnswers";
 import { uid } from "../lib/id";
 import {
@@ -64,7 +64,7 @@ export function AvailabilityPage() {
   const [formErrorTick, setFormErrorTick] = useState(0);
   const [thanks, setThanks] = useState("");
   const [unconfirmed, setUnconfirmed] = useState("");
-  const [thanksTick, setThanksTick] = useState(0);
+  const [noticeFocus, setNoticeFocus] = useState(0);
   const [listFocusTick, setListFocusTick] = useState(0);
   const [removedNotice, setRemovedNotice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -86,8 +86,6 @@ export function AvailabilityPage() {
   const pendingSave = useRef<AvailabilityEntry | null>(null);
   const keepProblem = useRef(false);
   const removeTitleRef = useRef<HTMLHeadingElement>(null);
-  const unconfirmedRef = useRef<HTMLParagraphElement>(null);
-  const removedTimer = useRef<number | null>(null);
   const afterRemoveFocus = useRef<"trigger" | "list" | null>(null);
   const todayIso = formatISODate(new Date());
 
@@ -104,7 +102,6 @@ export function AvailabilityPage() {
         heldIds.current.delete(matched.id);
         setUnconfirmed("");
         setThanks(matched.name);
-        setThanksTick((tick) => tick + 1);
       }
       for (const id of sharedIds) heldIds.current.delete(id);
       setEntries((current) => {
@@ -169,12 +166,9 @@ export function AvailabilityPage() {
   }, [formError, formErrorTick]);
 
   useEffect(() => {
-    if (thanks) thanksRef.current?.focus();
-  }, [thanks, thanksTick]);
-
-  useEffect(() => {
-    if (unconfirmed) unconfirmedRef.current?.focus();
-  }, [unconfirmed]);
+    if (noticeFocus === 0) return;
+    thanksRef.current?.focus();
+  }, [noticeFocus]);
 
   useEffect(() => {
     if (listFocusTick === 0) return;
@@ -212,6 +206,11 @@ export function AvailabilityPage() {
   const daysInvalid = formError.startsWith("Add the day") || formError.startsWith("Add a time");
   const sendInvalid = formError.startsWith("This answer was not sent");
   const listStatus = awaitingList ? "loading" : loadFailed && entries.length === 0 ? "error" : "ready";
+  const saveBanner = thanks
+    ? `Thank you, ${thanks}. Anyone with this page can see your times.`
+    : unconfirmed
+      ? `${unconfirmed}, your answer was sent, but the list has not confirmed it yet.`
+      : "";
 
   function dayDescribedBy(): string {
     return ["day-help", dayError ? "day-error" : "", daysInvalid ? "form-error" : ""].filter(Boolean).join(" ");
@@ -298,12 +297,8 @@ export function AvailabilityPage() {
   }
 
   function announce(text: string) {
-    if (removedTimer.current != null) window.clearTimeout(removedTimer.current);
     setRemovedNotice("");
-    window.setTimeout(() => {
-      setRemovedNotice(text);
-      removedTimer.current = window.setTimeout(() => setRemovedNotice(""), 400);
-    }, 20);
+    window.setTimeout(() => setRemovedNotice(text), 0);
   }
 
   function retryLoad() {
@@ -339,7 +334,7 @@ export function AvailabilityPage() {
       if (outcome === "already-removed") {
         keepProblem.current = true;
         setListProblem(`${entry.name} was already removed.`);
-        announce(`${entry.name} was already removed.`);
+        setRemovedNotice("");
         void loadList();
       } else {
         setListProblem("");
@@ -402,11 +397,11 @@ export function AvailabilityPage() {
       if (published.confirmed) {
         setUnconfirmed("");
         setThanks(saved.name);
-        setThanksTick((tick) => tick + 1);
       } else {
         setThanks("");
         setUnconfirmed(saved.name);
       }
+      setNoticeFocus((tick) => tick + 1);
       void loadList();
       setName("");
       setNote("");
@@ -441,15 +436,20 @@ export function AvailabilityPage() {
             {formError}
           </p>
         )}
-        {thanks && (
-          <p id="thanks" className="banner" tabIndex={-1} ref={thanksRef}>
-            Thank you, {thanks}. Anyone with this page can see your times.
-          </p>
-        )}
-        {unconfirmed && (
-          <p id="save-unconfirmed" className="banner banner-warn" tabIndex={-1} ref={unconfirmedRef}>
-            {unconfirmed}, your answer was sent, but the list has not confirmed it yet.
-          </p>
+        <p id="save-live" className="sr-only" role="status">
+          {saveBanner}
+        </p>
+        {saveBanner && (
+          <div className={unconfirmed && !thanks ? "banner banner-warn" : "banner"}>
+            <p id={thanks ? "thanks" : "save-unconfirmed"} tabIndex={-1} ref={thanksRef} aria-hidden="true">
+              {saveBanner}
+            </p>
+            {unconfirmed && !thanks ? (
+              <button type="button" className="btn" onClick={() => void loadList()}>
+                Check again
+              </button>
+            ) : null}
+          </div>
         )}
 
         <div className="field">
@@ -659,7 +659,7 @@ export function AvailabilityPage() {
         </div>
       </form>
 
-      <CommonTimes answers={entries} status={listStatus} />
+      <CommonTimes answers={entries.filter((entry) => countsInCommonTimes(entry))} status={listStatus} />
 
       <section className="saved" aria-labelledby="saved-title" aria-busy={loading}>
         <h2 id="saved-title" tabIndex={-1} ref={savedTitleRef}>
@@ -685,13 +685,19 @@ export function AvailabilityPage() {
         ) : entries.length > 0 ? (
           <ul className="saved-list">
             {entries.map((entry) => (
-              <li key={entry.id}>
-                <h3>{entry.name}</h3>
+              <li key={entry.id} className={entry.fromServer ? undefined : "is-pending"}>
+                <h3>
+                  {entry.name}
+                  {!entry.fromServer && <span className="pending-tag">Not confirmed yet</span>}
+                </h3>
                 {entry.note && <p>{entry.note}</p>}
                 <ul>
                   {entry.ranges.map((range) => (
                     <li key={`${entry.id}-${range.date}-${range.start}`}>
-                      {formatFullDate(range.date)} · {formatTime(range.start)} – {formatTime(range.end)}
+                      {formatFullDate(range.date)} ·{" "}
+                      <span className="time-keep">
+                        {formatTime(range.start)} – {formatTime(range.end)}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -747,14 +753,26 @@ export function AvailabilityPage() {
             </h2>
             <p id="remove-copy">{pendingRemove.name}&apos;s answer will be taken off the shared list.</p>
             <div className="dialog-actions">
-              <button ref={cancelButtonRef} type="button" className="btn btn-ghost" disabled={removing} onClick={cancelRemove}>
+              <button
+                ref={cancelButtonRef}
+                type="button"
+                className="btn btn-ghost"
+                aria-disabled={removing || undefined}
+                onClick={() => {
+                  if (removingRef.current) return;
+                  cancelRemove();
+                }}
+              >
                 Cancel
               </button>
               <button
                 type="button"
                 className={removing ? "btn is-busy" : "btn"}
-                disabled={removing}
-                onClick={() => void confirmRemove()}
+                aria-disabled={removing || undefined}
+                onClick={() => {
+                  if (removingRef.current) return;
+                  void confirmRemove();
+                }}
               >
                 {removing ? "Removing…" : `Remove ${pendingRemove.name}`}
               </button>

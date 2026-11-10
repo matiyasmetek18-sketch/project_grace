@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { commonSpans } from "./commonTimes";
-import { sameOffer, sanitizeEntries } from "./availabilityStore";
+import * as store from "./availabilityStore";
+
+const { countsInCommonTimes, sameOffer, sanitizeEntries } = store;
 
 const range = { date: "2026-11-13", start: "08:00", end: "09:00" };
 
@@ -16,6 +18,12 @@ function entry(index: number, createdAt?: string) {
 }
 
 describe("sanitizeEntries", () => {
+  it("does not keep the unused local-save helpers", () => {
+    expect("saveEntries" in store).toBe(false);
+    expect("safeLocal" in store).toBe(false);
+    expect("AVAILABILITY_KEY" in store).toBe(false);
+  });
+
   it("keeps the newest answers when more than 200 are returned", () => {
     const raw = Array.from({ length: 201 }, (_, index) => entry(index));
     const sanitized = sanitizeEntries(raw);
@@ -70,21 +78,33 @@ describe("sanitizeEntries", () => {
     expect(saved.ranges).toEqual([{ date: "2026-11-09", start: "08:00", end: "12:00" }]);
   });
 
-  it("sorts a slightly future createdAt last and drops one more than a day ahead", () => {
+  it("keeps a day of clock skew visible and sorts year 9999 last", () => {
     const now = Date.parse("2026-11-10T12:00:00.000Z");
-    const soon = new Date(now + 2 * 60 * 60 * 1000).toISOString();
+    const viewerNow = now - 23 * 60 * 60 * 1000;
+    const submitterStamp = new Date(now + 2 * 60 * 60 * 1000).toISOString();
+    const junk = Array.from({ length: 200 }, (_, index) => ({
+      _id: `junk-${index}`,
+      name: "Junk",
+      note: "",
+      ranges: [range],
+      createdAt: "9999-01-01T00:00:00.000Z",
+    }));
     const ordered = sanitizeEntries(
       [
-        { _id: "soon", name: "Soon", note: "", ranges: [range], createdAt: soon },
-        { _id: "missing", name: "Missing", note: "", ranges: [range] },
-        { _id: "bad", name: "Bad", note: "", ranges: [range], createdAt: "not-a-date" },
-        { _id: "junk", name: "Junk", note: "", ranges: [range], createdAt: "9999-01-01T00:00:00.000Z" },
+        ...junk,
+        { _id: "skew", name: "Skew", note: "", ranges: [range], createdAt: submitterStamp },
         { _id: "real", name: "Nia", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" },
       ],
-      now,
+      viewerNow,
     );
-    expect(ordered.map((item) => item.id)).toEqual(["real", "soon", "missing", "bad"]);
-    expect(commonSpans(ordered).some((span) => span.names.includes("Junk"))).toBe(false);
+    expect(ordered).toHaveLength(200);
+    expect(ordered.map((item) => item.id)).toContain("skew");
+    expect(ordered.map((item) => item.id)).toContain("real");
+    expect(ordered[ordered.length - 1].id.startsWith("junk")).toBe(true);
+    const counted = ordered.filter((item) => countsInCommonTimes(item, viewerNow));
+    expect(counted.map((item) => item.id)).toEqual(expect.arrayContaining(["skew", "real"]));
+    expect(counted.some((item) => item.name === "Junk")).toBe(false);
+    expect(commonSpans(counted).some((span) => span.names.includes("Junk"))).toBe(false);
   });
 
   it("does not treat two offers as the same when createdAt differs", () => {

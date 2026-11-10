@@ -12,7 +12,7 @@ That address is the public site. Nothing needs to be installed.
 
 ## Run it locally
 
-Node.js must match `^22.22.2 || ^24.15.0 || >=26.0.0`. That is the range jsdom 31.0.0 declares. This app was checked on Node 22.23.4. The Pages and CI workflows use Node 22.
+Node.js must match `^20.19.0 || ^22.13.0 || >=24.0.0`. Tests use jsdom 29, which allows Node 20.19 and Node 22.13. CI runs the suite on Node 20 and Node 22.
 
 ```bash
 npm install
@@ -46,7 +46,7 @@ A person can add more than one day. Each day is added on its own. Sundays and Th
 
 Answers are stored in one public list. There are no accounts. Anyone using the site can see every answer and remove any answer that is on the list, and the whole list could be wiped. Do not enter sensitive information.
 
-An answer dated more than 24 hours ahead is not shown and is not counted in the common times. It can still be stored in the public list. An answer dated more than 5 minutes ahead, but not more than 24 hours, is shown after the answers that have a real time. An answer that has only Sunday or Thursday ranges is hidden on this page and is still stored publicly.
+The public list does not add its own clock. This page uses the time sent with the answer. A time up to 7 days ahead is still shown and counted, so a clock that is about a day fast or slow does not hide a real answer. A time further ahead than that, such as the year 9999, stays in the list but is sorted after real answers and is not counted in the common times. An answer that has only Sunday or Thursday ranges is hidden on this page and is still stored publicly. An answer that has been sent but not confirmed yet is marked “Not confirmed yet” and is not counted in the common times. You can check the list again from that message.
 
 ## Stack
 

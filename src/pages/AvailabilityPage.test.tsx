@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AvailabilityPage } from "./AvailabilityPage";
 
-type Call = { url: string; method: string };
+type Call = { url: string; method: string; body: string };
 
 const range = { date: "2026-11-13", start: "08:00", end: "12:00" };
 
@@ -29,7 +29,11 @@ function mockBin(handler: (call: Call) => Promise<Response> | Response) {
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (!url.includes("dontlosedata.site")) throw new Error(`unexpected fetch ${url}`);
-      const call = { url, method: (init?.method ?? "GET").toUpperCase() };
+      const call = {
+        url,
+        method: (init?.method ?? "GET").toUpperCase(),
+        body: typeof init?.body === "string" ? init.body : "",
+      };
       calls.push(call);
       return handler(call);
     }),
@@ -112,7 +116,7 @@ describe("availability page", () => {
     const sending = screen.getByRole("button", { name: "Sending…" }) as HTMLButtonElement;
     expect(sending.disabled).toBe(true);
     post.resolve(json({}));
-    expect(await screen.findByText(/has not confirmed it yet/)).toBeTruthy();
+    expect(await screen.findByText(/has not confirmed it yet/, { selector: "#save-live" })).toBeTruthy();
     expect(screen.queryByText(/was not sent/)).toBeNull();
     expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
   });
@@ -141,7 +145,7 @@ describe("availability page", () => {
     const retry = screen.getByRole("button", { name: "Share when I can come" }) as HTMLButtonElement;
     expect(retry.disabled).toBe(false);
     fireEvent.submit(form);
-    expect(await screen.findByText(/Thank you, Nia/)).toBeTruthy();
+    expect(await screen.findByText(/Thank you, Nia/, { selector: "#save-live" })).toBeTruthy();
     expect(posts).toBe(2);
   });
 
@@ -160,7 +164,7 @@ describe("availability page", () => {
     fillHours();
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
     expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Nia/ })).toBeTruthy();
     await act(async () => {
       first.resolve(
         json([
@@ -176,7 +180,7 @@ describe("availability page", () => {
       await first.promise;
     });
     expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Nia/ })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Ghost" })).toBeNull();
     expect(gets).toBeGreaterThan(1);
   });
@@ -202,7 +206,7 @@ describe("availability page", () => {
     expect(await screen.findByText("The shared list did not load.")).toBeTruthy();
     fillHours();
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
-    expect(await screen.findByText(/Thank you, Nia/)).toBeTruthy();
+    expect(await screen.findByText(/Thank you, Nia/, { selector: "#save-live" })).toBeTruthy();
     expect(screen.getByText("The shared list did not load.")).toBeTruthy();
     refetch.resolve(
       json([
@@ -271,9 +275,12 @@ describe("availability page", () => {
     expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
     fillHours();
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
-    const thanks = await screen.findByText(/Thank you, Nia/);
-    expect(document.activeElement).toBe(thanks);
-    expect(thanks.getAttribute("role")).toBeNull();
+    expect(await screen.findByText(/Thank you, Nia/, { selector: "#save-live" })).toBeTruthy();
+    expect(document.activeElement?.id).toBe("thanks");
+    expect(document.getElementById("thanks")?.getAttribute("role")).toBeNull();
+    expect(document.getElementById("thanks")?.getAttribute("aria-hidden")).toBe("true");
+    expect(document.getElementById("save-live")?.textContent).toMatch(/Thank you, Nia/);
+    expect(document.getElementById("save-live")?.getAttribute("role")).toBe("status");
   });
 
   it("clears a duplicate-day message that no longer applies", async () => {
@@ -292,7 +299,7 @@ describe("availability page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add this day" }));
     expect((await screen.findByRole("alert")).textContent).toMatch(/already on your list/);
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
-    expect(await screen.findByText(/confirmed it yet|Thank you, Nia/)).toBeTruthy();
+    expect(await screen.findByText(/confirmed it yet|Thank you, Nia/, { selector: "#save-live" })).toBeTruthy();
     expect(screen.queryByText(/already on your list/)).toBeNull();
   });
 
@@ -315,7 +322,8 @@ describe("availability page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
     expect(document.activeElement).toBe(document.getElementById("saved-title"));
-    expect(screen.getByText(/second person/)).toBeTruthy();
+    expect(screen.getByText(/No overlapping time yet/)).toBeTruthy();
+    expect(screen.queryByText(/second person/)).toBeNull();
     expect(calls.filter((call) => call.method === "GET")).toHaveLength(2);
   });
 
@@ -439,9 +447,9 @@ describe("availability page", () => {
     render(<AvailabilityPage />);
     fillHours();
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
-    expect(await screen.findByText(/has not confirmed it yet/)).toBeTruthy();
+    expect(await screen.findByText(/has not confirmed it yet/, { selector: "#save-live" })).toBeTruthy();
     expect(screen.queryByText(/Thank you, Nia/)).toBeNull();
-    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Nia/ })).toBeTruthy();
     expect(screen.queryByText(/was not sent/)).toBeNull();
   });
 
@@ -459,7 +467,7 @@ describe("availability page", () => {
     const before = gets;
     fillHours();
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
-    await screen.findByText(/has not confirmed it yet/);
+    await screen.findByText(/has not confirmed it yet/, { selector: "#save-live" });
     expect(gets - before).toBe(1);
   });
 
@@ -526,12 +534,277 @@ describe("availability page", () => {
     pending.resolve(new Response(null, { status: 200 }));
   });
 
-  it("clears the removed announcement so a later removal can be spoken", async () => {
+  it("keeps the removed announcement until the next action", async () => {
     mockBin((call) => (call.method === "DELETE" ? new Response(null, { status: 200 }) : json([ada])));
     render(<AvailabilityPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Remove Ada" }));
     fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove Ada" }));
     expect(await screen.findByText("Removed Ada")).toBeTruthy();
-    await waitFor(() => expect(screen.queryByText("Removed Ada")).toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(screen.getByText("Removed Ada")).toBeTruthy();
+  });
+
+  it("announces already removed only once", async () => {
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "DELETE") return new Response(null, { status: 404 });
+      gets += 1;
+      return json(gets === 1 ? [ada] : []);
+    });
+    render(<AvailabilityPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Ada" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove Ada" }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/already removed/);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const inStatus = screen.queryAllByRole("status").some((element) => element.textContent?.includes("already removed"));
+    expect(inStatus).toBe(false);
+    expect(screen.getAllByText(/already removed/)).toHaveLength(1);
+  });
+
+  it("does not move focus when a later reload confirms the save", async () => {
+    const refetch = defer<Response>();
+    let gets = 0;
+    let postedAt = "";
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([]);
+        return refetch.promise;
+      }
+      postedAt = JSON.parse(call.body || "{}").createdAt ?? "";
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/has not confirmed it yet/, { selector: "#save-live" })).toBeTruthy();
+    await waitFor(() => expect(document.activeElement?.id).toBe("save-unconfirmed"));
+    screen.getByLabelText("Your name").focus();
+    refetch.resolve(
+      json([
+        {
+          _id: "nia-server",
+          name: "Nia",
+          note: "",
+          ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+          createdAt: postedAt,
+        },
+      ]),
+    );
+    expect(await screen.findByText(/Thank you, Nia/, { selector: "#save-live" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByLabelText("Your name"));
+  });
+
+  it("keeps tab inside the dialog while a delete is in flight", async () => {
+    const pending = defer<Response>();
+    mockBin((call) => (call.method === "DELETE" ? pending.promise : json([ada])));
+    render(<AvailabilityPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Ada" }));
+    const dialog = await screen.findByRole("dialog");
+    const buttons = within(dialog).getAllByRole("button");
+    fireEvent.click(buttons[1]);
+    expect(buttons.every((button) => (button as HTMLButtonElement).disabled === false)).toBe(true);
+    expect(buttons.every((button) => button.getAttribute("aria-disabled") === "true")).toBe(true);
+    buttons[1].focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+    pending.resolve(new Response(null, { status: 200 }));
+  });
+
+  function commonText(): string {
+    return document.getElementById("common-title")?.parentElement?.textContent ?? "";
+  }
+
+  const overlap = { date: "2026-11-10", start: "08:00", end: "12:00" };
+
+  function listed(id: string, name: string, createdAt = "2026-11-01T00:00:00.000Z") {
+    return { _id: id, name, note: "", ranges: [overlap], createdAt };
+  }
+
+  it("does not count a pending save in common times during a slow reload", async () => {
+    const refetch = defer<Response>();
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([listed("ada", "Ada")]);
+        return refetch.promise;
+      }
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByRole("heading", { name: /Nia/ })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /Nia/ }).textContent).toMatch(/Not confirmed yet/);
+    expect(commonText()).not.toMatch(/2 people/);
+    expect(commonText()).not.toMatch(/Nia/);
+    refetch.resolve(json([listed("ada", "Ada")]));
+  });
+
+  it("counts a save in common times only after a later reload confirms it", async () => {
+    const refetch = defer<Response>();
+    let gets = 0;
+    let postedAt = "";
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([listed("ada", "Ada")]);
+        return refetch.promise;
+      }
+      postedAt = JSON.parse(call.body || "{}").createdAt ?? "";
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/Not confirmed yet/)).toBeTruthy();
+    expect(commonText()).not.toMatch(/Nia/);
+    refetch.resolve(json([listed("ada", "Ada"), listed("nia-server", "Nia", postedAt)]));
+    expect(await screen.findByText(/2 people/)).toBeTruthy();
+    expect(commonText()).toMatch(/Nia/);
+    expect(screen.getByRole("heading", { name: "Nia" }).textContent).not.toMatch(/Not confirmed yet/);
+  });
+
+  it("counts only confirmed answers when two people save at the same time", async () => {
+    const refetch = defer<Response>();
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([listed("ada", "Ada")]);
+        return refetch.promise;
+      }
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/Not confirmed yet/)).toBeTruthy();
+    refetch.resolve(json([listed("ada", "Ada"), listed("bo", "Bo")]));
+    expect(await screen.findByRole("heading", { name: "Bo" })).toBeTruthy();
+    expect(commonText()).toMatch(/2 people/);
+    expect(commonText()).toMatch(/Ada/);
+    expect(commonText()).toMatch(/Bo/);
+    expect(commonText()).not.toMatch(/Nia/);
+    expect(screen.getByRole("heading", { name: /Nia/ }).textContent).toMatch(/Not confirmed yet/);
+  });
+
+  it("keeps common times on the newer confirmed list when an older response arrives later", async () => {
+    const older = defer<Response>();
+    const newer = defer<Response>();
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([listed("ada", "Ada")]);
+        if (gets === 2) return older.promise;
+        return newer.promise;
+      }
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/Not confirmed yet/)).toBeTruthy();
+    document.dispatchEvent(new Event("visibilitychange"));
+    newer.resolve(json([listed("ada", "Ada")]));
+    expect(await screen.findByText(/has not confirmed it yet/, { selector: "#save-live" })).toBeTruthy();
+    await act(async () => {
+      older.resolve(json([listed("ada", "Ada"), listed("ghost", "Ghost")]));
+      await older.promise;
+    });
+    expect(screen.queryByRole("heading", { name: "Ghost" })).toBeNull();
+    expect(commonText()).not.toMatch(/Nia/);
+    expect(commonText()).not.toMatch(/Ghost/);
+    expect(commonText()).not.toMatch(/2 people/);
+  });
+
+  it("drops a confirmed answer another person deletes while yours is still pending", async () => {
+    const refetch = defer<Response>();
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([listed("ada", "Ada"), listed("bo", "Bo")]);
+        return refetch.promise;
+      }
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/Not confirmed yet/)).toBeTruthy();
+    refetch.resolve(json([listed("bo", "Bo")]));
+    expect(await screen.findByRole("heading", { name: "Bo" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Ada" })).toBeNull();
+    expect(screen.getByRole("heading", { name: /Nia/ }).textContent).toMatch(/Not confirmed yet/);
+    expect(commonText()).not.toMatch(/Nia/);
+    expect(commonText()).not.toMatch(/Ada/);
+    expect(commonText()).not.toMatch(/2 people/);
+  });
+
+  it("uses the bars copy when one person is on the list", async () => {
+    mockBin(() => json([ada]));
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(screen.getByText(/No overlapping time yet. The bars below show/)).toBeTruthy();
+    expect(screen.queryByText(/second person/)).toBeNull();
+    expect(document.querySelector(".flow-band")).toBeTruthy();
+  });
+
+  it("shows a waiting line while common times load and a failure line when they do not", async () => {
+    const first = defer<Response>();
+    mockBin(() => first.promise);
+    render(<AvailabilityPage />);
+    expect(screen.getByText("Waiting for the shared list.")).toBeTruthy();
+    expect(screen.queryByText(/second person/)).toBeNull();
+    expect(screen.queryByText(/No overlapping time yet/)).toBeNull();
+    first.resolve(json({ message: "no" }, 500));
+    expect(await screen.findByText("Common times could not load.")).toBeTruthy();
+    expect(screen.queryByText("Waiting for the shared list.")).toBeNull();
+  });
+
+  it("tags an unconfirmed answer and checks the list again without counting it early", async () => {
+    const slow = defer<Response>();
+    let gets = 0;
+    let postedAt = "";
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([listed("ada", "Ada")]);
+        if (gets === 2) return slow.promise;
+        return json([listed("ada", "Ada"), listed("nia", "Nia", postedAt)]);
+      }
+      postedAt = JSON.parse(call.body || "{}").createdAt ?? "";
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    const heading = await screen.findByRole("heading", { name: /Nia/ });
+    expect(heading.textContent).toMatch(/Not confirmed yet/);
+    expect(heading.closest("li")?.classList.contains("is-pending")).toBe(true);
+    expect(commonText()).not.toMatch(/Nia/);
+    const before = gets;
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+    expect(await screen.findByRole("heading", { name: "Nia" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Nia" }).textContent).not.toMatch(/Not confirmed yet/);
+    expect(commonText()).toMatch(/Nia/);
+    expect(commonText()).toMatch(/2 people/);
+    expect(gets).toBeGreaterThan(before);
+    await act(async () => {
+      slow.resolve(json([listed("ada", "Ada"), listed("ghost", "Ghost")]));
+      await slow.promise;
+    });
+    expect(screen.queryByRole("heading", { name: "Ghost" })).toBeNull();
   });
 });

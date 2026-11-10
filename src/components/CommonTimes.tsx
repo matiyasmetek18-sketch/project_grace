@@ -23,15 +23,28 @@ export function CommonTimes({
   const covered = coverageSpans(answers);
   const shared = commonSpans(answers);
   const dates = [...new Set(covered.map((span) => span.date))];
-  const waiting = status !== "ready";
+  const marks = [
+    { label: "7a", at: 0 },
+    { label: "12p", at: leftOf("12:00") },
+    { label: "4p", at: leftOf("16:00") },
+    { label: "9p", at: 100 },
+  ];
+  const summary =
+    status === "loading"
+      ? "Waiting for the shared list."
+      : status === "error"
+        ? "Common times could not load."
+        : answers.length === 0
+          ? "When a second person adds a time, the stretches you share will show up here."
+          : shared.length === 0
+            ? "No overlapping time yet. The bars below show when each person can come."
+            : "";
 
   return (
     <section className="common" aria-labelledby="common-title">
       <h2 id="common-title">Common times</h2>
-      {answers.length < 2 ? (
-        waiting ? null : <p>When a second person adds a time, the stretches you share will show up here.</p>
-      ) : shared.length === 0 ? (
-        <p>No overlapping time yet. The bars below show when each person can come.</p>
+      {summary ? (
+        <p>{summary}</p>
       ) : (
         <ol className="common-list">
           {shared.slice(0, 4).map((span) => (
@@ -56,22 +69,37 @@ export function CommonTimes({
             return (
               <div key={date} className="flow-day">
                 <h3>{formatFullDate(date)}</h3>
-                <div className="flow-track" role="img" aria-label={label}>
-                  {spans.map((span) => (
-                    <span
-                      key={`${span.start}-${span.end}-${span.names.join()}`}
-                      className="flow-band"
-                      data-count={Math.min(span.names.length, 4)}
-                      style={{ left: `${leftOf(span.start)}%`, width: `${widthOf(span.start, span.end)}%` }}
-                    />
-                  ))}
+                <div className="flow-scale">
+                  <div className="flow-track" role="img" aria-label={label}>
+                    {spans.map((span) => (
+                      <span
+                        key={`${span.start}-${span.end}-${span.names.join()}`}
+                        className="flow-band"
+                        data-count={Math.min(span.names.length, 4)}
+                        style={{ left: `${leftOf(span.start)}%`, width: `${widthOf(span.start, span.end)}%` }}
+                      />
+                    ))}
+                  </div>
+                  <div className="flow-axis" aria-hidden="true">
+                    {marks.map((mark) => (
+                      <span key={mark.label} style={{ left: `${mark.at}%` }}>
+                        {mark.label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flow-axis" aria-hidden="true">
-                  <span>7a</span>
-                  <span>12p</span>
-                  <span>4p</span>
-                  <span>9p</span>
-                </div>
+                <ul className="flow-legend">
+                  <li>
+                    <span className="flow-swatch" data-count="1" aria-hidden="true" />1
+                  </li>
+                  <li>
+                    <span className="flow-swatch" data-count="2" aria-hidden="true" />2
+                  </li>
+                  <li>
+                    <span className="flow-swatch" data-count="3" aria-hidden="true" />
+                    3+
+                  </li>
+                </ul>
               </div>
             );
           })}

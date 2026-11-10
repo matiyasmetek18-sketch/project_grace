@@ -2,16 +2,14 @@ import type { TimeRange } from "../types";
 import { isClosedDay, isHHMM, isISODate, keepSeparateRanges, minutes } from "./time";
 
 /**
- * createdAt rules:
- * - More than 5 minutes ahead of now is not used as a real time. Those rows sort after
- *   answers with a usable time. This skew is for sort order only.
- * - More than 24 hours ahead of now is dropped. Those rows are not shown and do not
- *   count in common times. They can still exist in the public list.
+ * createdAt is the time the page sent. The public bin docs add an id on POST and
+ * return the stored JSON; they do not add a server clock. Clocks can each be about
+ * a day off, so a stamp up to 7 days ahead still sorts as a real time and counts
+ * in common times. A stamp further ahead (for example year 9999) stays in the list
+ * but sorts last, so it cannot push a real answer out of the 200 cap, and it does
+ * not count in common times.
  */
-const CREATED_AT_SKEW_MS = 5 * 60 * 1000;
-const CREATED_AT_DROP_MS = 24 * 60 * 60 * 1000;
-
-export const AVAILABILITY_KEY = "grace.availability.v1";
+const FAR_FUTURE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type AvailabilityEntry = {
   id: string;
@@ -22,19 +20,6 @@ export type AvailabilityEntry = {
   ranges: TimeRange[];
   createdAt: string;
 };
-
-type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-
-function safeLocal(): StorageLike | null {
-  try {
-    const probe = "__grace_avail__";
-    localStorage.setItem(probe, "1");
-    localStorage.removeItem(probe);
-    return localStorage;
-  } catch {
-    return null;
-  }
-}
 
 function isRange(value: unknown): value is TimeRange {
   if (!value || typeof value !== "object") return false;
@@ -48,19 +33,24 @@ function isRange(value: unknown): value is TimeRange {
   );
 }
 
-/** Milliseconds for ordering, or null when the value is missing, invalid, or more than 5 minutes ahead. */
+/** Milliseconds for ordering, or null when the value is missing, invalid, or more than 7 days ahead. */
 export function createdAtMillis(value: unknown, now = Date.now()): number | null {
   if (typeof value !== "string" || value.trim() === "") return null;
   const parsed = Date.parse(value);
   if (!Number.isFinite(parsed)) return null;
-  if (parsed > now + CREATED_AT_SKEW_MS) return null;
+  if (parsed > now + FAR_FUTURE_MS) return null;
   return parsed;
 }
 
-function createdAtTooFarAhead(value: unknown, now: number): boolean {
+export function createdAtFarFuture(value: unknown, now = Date.now()): boolean {
   if (typeof value !== "string" || value.trim() === "") return false;
   const parsed = Date.parse(value);
-  return Number.isFinite(parsed) && parsed > now + CREATED_AT_DROP_MS;
+  return Number.isFinite(parsed) && parsed > now + FAR_FUTURE_MS;
+}
+
+/** Server-confirmed answers with a usable time. Pending and far-future rows do not count. */
+export function countsInCommonTimes(entry: AvailabilityEntry, now = Date.now()): boolean {
+  return entry.fromServer && !createdAtFarFuture(entry.createdAt, now);
 }
 
 export function sameOffer(a: AvailabilityEntry, b: AvailabilityEntry): boolean {
@@ -86,7 +76,6 @@ export function sanitizeEntries(value: unknown, now = Date.now()): AvailabilityE
     const serverId = typeof entry._id === "string" ? entry._id.trim().slice(0, 80) : "";
     if (!serverId) continue;
     const createdAt = typeof entry.createdAt === "string" ? entry.createdAt : "";
-    if (createdAtTooFarAhead(createdAt, now)) continue;
     ranked.push({
       sortKey: createdAtMillis(createdAt, now),
       entry: {
@@ -106,14 +95,4 @@ export function sanitizeEntries(value: unknown, now = Date.now()): AvailabilityE
     return b.sortKey - a.sortKey;
   });
   return ranked.slice(0, 200).map((item) => item.entry);
-}
-
-export function saveEntries(entries: AvailabilityEntry[], storage: StorageLike | null = safeLocal()): boolean {
-  if (!storage) return false;
-  try {
-    storage.setItem(AVAILABILITY_KEY, JSON.stringify(entries));
-    return true;
-  } catch {
-    return false;
-  }
 }
