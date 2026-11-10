@@ -1997,17 +1997,25 @@ input[type="radio"] {
   animation: flow-in 0.7s ease;
 }
 
-.flow-band[data-count="1"] {
-  background: rgba(36, 56, 44, 0.6);
+/* Lightest to darkest. Each mix stays at least 3:1 on #efe6d6.
+   A third step that is also 3:1 darker than the middle would be below black,
+   so the middle and the darkest step carry an outline as well as the fill. */
+.flow-band[data-count="1"],
+.flow-swatch[data-count="1"] {
+  background: linear-gradient(rgba(60, 104, 75, 0.72), rgba(60, 104, 75, 0.72)), #efe6d6;
 }
 
-.flow-band[data-count="2"] {
-  background: #1c1914;
+.flow-band[data-count="2"],
+.flow-swatch[data-count="2"] {
+  background: linear-gradient(rgba(27, 51, 38, 0.815), rgba(27, 51, 38, 0.815)), #efe6d6;
+  box-shadow: inset 0 0 0 2px #1c1914;
 }
 
 .flow-band[data-count="3"],
-.flow-band[data-count="4"] {
-  background: #e6c27a;
+.flow-band[data-count="4"],
+.flow-swatch[data-count="3"] {
+  background: #1c1914;
+  box-shadow: inset 0 0 0 2px #e6c27a;
 }
 
 .flow-axis {
@@ -2059,17 +2067,6 @@ input[type="radio"] {
   background: #efe6d6;
 }
 
-.flow-swatch[data-count="1"] {
-  background: linear-gradient(rgba(36, 56, 44, 0.6), rgba(36, 56, 44, 0.6)), #efe6d6;
-}
-
-.flow-swatch[data-count="2"] {
-  background: #1c1914;
-}
-
-.flow-swatch[data-count="3"] {
-  background: #e6c27a;
-}
 
 @keyframes flow-in {
   from {

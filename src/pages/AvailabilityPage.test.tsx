@@ -861,6 +861,7 @@ describe("availability page", () => {
     await waitFor(() => expect(document.activeElement?.id).toBe("thanks"));
     expect(document.activeElement?.textContent).toMatch(/Thank you, Nia/);
     expect(document.activeElement?.getAttribute("aria-hidden")).not.toBe("true");
+    expect(document.getElementById("save-status")?.textContent).toBe("");
   });
 
   it("drops a confirmed answer that a later reload leaves out", async () => {
@@ -894,5 +895,103 @@ describe("availability page", () => {
     expect(screen.queryByRole("heading", { name: "Nia" })).toBeNull();
     expect(commonText()).not.toMatch(/Nia/);
     expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
+  });
+
+  it("announces a background confirmation without moving focus", async () => {
+    const refetch = defer<Response>();
+    let gets = 0;
+    let postedAt = "";
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([]);
+        return refetch.promise;
+      }
+      postedAt = JSON.parse(call.body || "{}").createdAt ?? "";
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/has not confirmed it yet/, { selector: "#save-unconfirmed" })).toBeTruthy();
+    screen.getByLabelText("Your name").focus();
+    refetch.resolve(
+      json([
+        {
+          _id: "nia-server",
+          name: "Nia",
+          note: "",
+          ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+          createdAt: postedAt,
+        },
+      ]),
+    );
+    expect(await screen.findByText(/Thank you, Nia/, { selector: "#save-status" })).toBeTruthy();
+    expect(document.getElementById("thanks")?.textContent).toMatch(/Thank you, Nia/);
+    expect(document.getElementById("thanks")?.getAttribute("role")).not.toBe("status");
+    expect(document.activeElement).toBe(screen.getByLabelText("Your name"));
+  });
+
+  it("moves focus to a confirmed save without writing the live region", async () => {
+    mockBin((call) =>
+      call.method === "GET"
+        ? json([])
+        : json({
+            _id: "nia",
+            name: "Nia",
+            note: "",
+            ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+            createdAt: "2026-11-01T00:00:00.000Z",
+          }),
+    );
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/Thank you, Nia/, { selector: "#thanks" })).toBeTruthy();
+    expect(document.activeElement?.id).toBe("thanks");
+    expect(document.getElementById("save-status")?.textContent).toBe("");
+  });
+
+  it("cancels an in-flight smooth scroll before focusing the thanks banner", async () => {
+    const calls: unknown[][] = [];
+    const original = window.scrollTo.bind(window);
+    window.scrollTo = ((...args: unknown[]) => {
+      calls.push(args);
+      return original(...(args as Parameters<typeof window.scrollTo>));
+    }) as typeof window.scrollTo;
+    mockBin((call) =>
+      call.method === "GET"
+        ? json([])
+        : json({
+            _id: "nia",
+            name: "Nia",
+            note: "",
+            ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+            createdAt: "2026-11-01T00:00:00.000Z",
+          }),
+    );
+    try {
+      render(<AvailabilityPage />);
+      expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+      fillHours();
+      fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+      expect(await screen.findByText(/Thank you, Nia/, { selector: "#thanks" })).toBeTruthy();
+      expect(document.activeElement?.id).toBe("thanks");
+      expect(
+        calls.some((args) => {
+          const option = args[0];
+          return (
+            typeof option === "object" &&
+            option !== null &&
+            "behavior" in option &&
+            (option.behavior === "instant" || option.behavior === "auto")
+          );
+        }),
+      ).toBe(true);
+    } finally {
+      window.scrollTo = original;
+    }
   });
 });

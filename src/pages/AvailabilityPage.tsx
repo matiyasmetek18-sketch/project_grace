@@ -29,6 +29,10 @@ const PRESETS = [
   { id: "evening", label: "Evening", start: "16:00", end: "20:00" },
 ];
 
+function thanksCopy(name: string): string {
+  return `Thank you, ${name}. Anyone with this page can see your times.`;
+}
+
 function nextOpenDay(today = new Date()): string {
   const date = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   while (date.getDay() === 0 || date.getDay() === 4) date.setDate(date.getDate() + 1);
@@ -65,6 +69,8 @@ export function AvailabilityPage() {
   const [thanks, setThanks] = useState("");
   const [unconfirmed, setUnconfirmed] = useState("");
   const [noticeFocus, setNoticeFocus] = useState(0);
+  const [statusMessage, setStatusMessage] = useState("");
+  const bannerText = useRef("");
   const [listFocusTick, setListFocusTick] = useState(0);
   const [removedNotice, setRemovedNotice] = useState("");
   const [saving, setSaving] = useState(false);
@@ -101,11 +107,19 @@ export function AvailabilityPage() {
       const pending = pendingSave.current;
       const matched = pending ? shared.find((row) => row.id === pending.id || sameOffer(row, pending)) : undefined;
       if (matched) {
+        const nextThanks = thanksCopy(matched.name);
+        const alreadyThanks = bannerText.current === nextThanks;
         pendingSave.current = null;
         heldIds.current.delete(matched.id);
+        bannerText.current = nextThanks;
         setUnconfirmed("");
         setThanks(matched.name);
-        if (focusIfConfirmed) setNoticeFocus((tick) => tick + 1);
+        if (focusIfConfirmed) {
+          setStatusMessage("");
+          setNoticeFocus((tick) => tick + 1);
+        } else if (!alreadyThanks) {
+          setStatusMessage(nextThanks);
+        }
       }
       for (const id of sharedIds) heldIds.current.delete(id);
       setEntries((current) => {
@@ -181,14 +195,26 @@ export function AvailabilityPage() {
     if (!node) return;
     const media = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
     const reduceMotion = media?.matches ?? false;
-    node.focus({ preventScroll: true });
-    if (typeof node.scrollIntoView !== "function") return;
     const behavior = reduceMotion ? "auto" : "instant";
-    try {
-      node.scrollIntoView({ block: "nearest", behavior });
-    } catch {
-      node.scrollIntoView({ block: "nearest" });
-    }
+    const root = document.documentElement;
+    const previousBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    const scrollTo = (top: number) => {
+      try {
+        window.scrollTo({ top, behavior });
+      } catch {
+        window.scrollTo(0, top);
+      }
+    };
+    scrollTo(window.scrollY);
+    const headerBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
+    const margin = Number.parseFloat(getComputedStyle(node).scrollMarginTop) || 0;
+    const clearance = Math.max(margin, headerBottom);
+    const rect = node.getBoundingClientRect();
+    const fullyVisible = rect.top >= headerBottom - 0.5 && rect.bottom <= window.innerHeight + 0.5;
+    if (!fullyVisible) scrollTo(Math.max(0, window.scrollY + rect.top - clearance));
+    root.style.scrollBehavior = previousBehavior;
+    node.focus({ preventScroll: true });
   }, [noticeFocus]);
 
   useEffect(() => {
@@ -228,7 +254,7 @@ export function AvailabilityPage() {
   const sendInvalid = formError.startsWith("This answer was not sent");
   const listStatus = awaitingList ? "loading" : loadFailed && entries.length === 0 ? "error" : "ready";
   const saveBanner = thanks
-    ? `Thank you, ${thanks}. Anyone with this page can see your times.`
+    ? thanksCopy(thanks)
     : unconfirmed
       ? `${unconfirmed}, your answer was sent, but the list has not confirmed it yet.`
       : "";
@@ -418,10 +444,13 @@ export function AvailabilityPage() {
       if (published.confirmed) {
         setUnconfirmed("");
         setThanks(saved.name);
+        bannerText.current = thanksCopy(saved.name);
       } else {
         setThanks("");
         setUnconfirmed(saved.name);
+        bannerText.current = `${saved.name}, your answer was sent, but the list has not confirmed it yet.`;
       }
+      setStatusMessage("");
       setNoticeFocus((tick) => tick + 1);
       void loadList();
       setName("");
@@ -457,6 +486,9 @@ export function AvailabilityPage() {
             {formError}
           </p>
         )}
+        <p id="save-status" className="sr-only" role="status" aria-live="polite">
+          {statusMessage}
+        </p>
         {saveBanner && (
           <div className={unconfirmed && !thanks ? "banner banner-warn" : "banner"}>
             <p id={thanks ? "thanks" : "save-unconfirmed"} tabIndex={-1} ref={thanksRef}>
