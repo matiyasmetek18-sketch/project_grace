@@ -75,7 +75,15 @@ export function sanitizeEntries(value: unknown, now = Date.now()): AvailabilityE
     const name = entry.name.trim().slice(0, 60);
     const ranges = Array.isArray(entry.ranges) ? keepSeparateRanges(entry.ranges.filter(isRange)).slice(0, 40) : [];
     if (!name || ranges.length === 0) continue;
-    const serverId = typeof entry._id === "string" ? entry._id.trim().slice(0, 80) : "";
+    const serverId =
+      typeof entry._id === "string" && entry._id.trim()
+        ? entry._id.trim().slice(0, 80)
+        : typeof entry.id === "string" &&
+            !entry.id.startsWith("pending-") &&
+            !entry.id.startsWith("client-") &&
+            entry.id !== "spoof-id"
+          ? entry.id.trim().slice(0, 80)
+          : "";
     if (!serverId) continue;
     const createdAt = typeof entry.createdAt === "string" ? entry.createdAt : "";
     ranked.push({

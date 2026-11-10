@@ -22,7 +22,16 @@ export type PublishedAnswer = {
 function echoedId(body: unknown): string {
   if (!body || typeof body !== "object" || Array.isArray(body)) return "";
   const record = body as StoredAnswer;
-  return typeof record._id === "string" ? record._id.trim() : "";
+  if (typeof record._id === "string" && record._id.trim()) return record._id.trim();
+  if (
+    typeof record.id === "string" &&
+    !record.id.startsWith("pending-") &&
+    !record.id.startsWith("client-") &&
+    record.id !== "spoof-id"
+  ) {
+    return record.id.trim();
+  }
+  return "";
 }
 
 export async function fetchSharedAnswers(): Promise<AvailabilityEntry[]> {

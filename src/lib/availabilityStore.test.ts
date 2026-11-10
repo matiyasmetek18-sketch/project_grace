@@ -47,6 +47,21 @@ describe("sanitizeEntries", () => {
     expect(saved.fromServer).toBe(true);
   });
 
+  it("accepts a server-generated id from dontlosedata", () => {
+    const [saved] = sanitizeEntries([
+      {
+        id: "27oc5xzcfkht",
+        name: "Matiyas Dawit",
+        note: "",
+        ranges: [range],
+        createdAt: "2026-11-10T19:30:41.236Z",
+      },
+    ]);
+    expect(saved.id).toBe("27oc5xzcfkht");
+    expect(saved.name).toBe("Matiyas Dawit");
+    expect(saved.fromServer).toBe(true);
+  });
+
   it("rejects a spoofed id when the server did not assign one", () => {
     expect(
       sanitizeEntries([
