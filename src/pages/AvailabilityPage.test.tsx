@@ -92,12 +92,15 @@ const ada = {
 
 beforeEach(() => {
   ensureDialog();
+  sessionStorage.setItem("grace_is_organizer", "true");
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date(2026, 10, 10, 12, 0, 0));
 });
 
 afterEach(() => {
   cleanup();
+  sessionStorage.clear();
+  localStorage.clear();
   vi.useRealTimers();
 });
 
@@ -1031,5 +1034,46 @@ describe("availability page", () => {
       window.scrollTo = original;
       Object.defineProperty(window, "scrollY", { value: 0, writable: true, configurable: true });
     }
+  });
+
+  it("allows participants to remove only their own answers while organizers can remove any", async () => {
+    sessionStorage.clear();
+    localStorage.clear();
+    const calls = mockBin((call) => {
+      if (call.method === "POST") return json({ id: "server-nia", name: "Nia", ranges: [range], createdAt: "2026-11-10T12:00:00.000Z" });
+      if (call.method === "DELETE") return new Response(null, { status: 200 });
+      return json([ada]);
+    });
+
+    render(<AvailabilityPage />);
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    // Regular visitor cannot remove Ada
+    expect(screen.queryByRole("button", { name: "Remove Ada" })).toBeNull();
+
+    // Visitor submits their own entry "Nia"
+    fillHours("Nia");
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByRole("heading", { name: "Nia" })).toBeTruthy();
+
+    // Visitor CAN remove Nia (their own entry)
+    const removeNia = await screen.findByRole("button", { name: "Remove Nia" });
+    expect(removeNia).toBeTruthy();
+
+    // Still cannot remove Ada
+    expect(screen.queryByRole("button", { name: "Remove Ada" })).toBeNull();
+
+    // Visitor removes their own entry
+    fireEvent.click(removeNia);
+    const dialog = await screen.findByRole("dialog", { name: "Remove Nia?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove Nia" }));
+    expect(await screen.findByText("Removed Nia")).toBeTruthy();
+    expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
+    expect(calls.find((call) => call.method === "DELETE")?.url).toContain("/id/server-nia");
+
+    // Switching to organizer access reveals remove buttons for everyone
+    vi.spyOn(window, "prompt").mockReturnValueOnce("secret");
+    fireEvent.click(screen.getByRole("button", { name: "Organizer access" }));
+    expect(await screen.findByRole("button", { name: "Remove Ada" })).toBeTruthy();
+    expect(screen.getByText("Organizer mode")).toBeTruthy();
   });
 });

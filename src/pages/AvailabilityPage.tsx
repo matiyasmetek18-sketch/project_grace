@@ -46,10 +46,61 @@ function copyHoursOnto(date: string, ranges: TimeRange[]): TimeRange[] {
   return keepSeparateRanges([...ranges, ...added]);
 }
 
+const MY_ANSWERS_STORAGE_KEY = "grace.my_answers.v1";
+
+function loadMyAnswerIds(): Set<string> {
+  if (typeof window === "undefined" || !window.localStorage) return new Set();
+  try {
+    const raw = window.localStorage.getItem(MY_ANSWERS_STORAGE_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? new Set(parsed.filter((id): id is string => typeof id === "string")) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function recordMyAnswerId(id: string) {
+  if (!id || typeof window === "undefined" || !window.localStorage) return;
+  try {
+    const current = loadMyAnswerIds();
+    current.add(id);
+    window.localStorage.setItem(MY_ANSWERS_STORAGE_KEY, JSON.stringify([...current]));
+  } catch {
+    // Ignore storage issues
+  }
+}
+
+function forgetMyAnswerId(id: string) {
+  if (!id || typeof window === "undefined" || !window.localStorage) return;
+  try {
+    const current = loadMyAnswerIds();
+    current.delete(id);
+    window.localStorage.setItem(MY_ANSWERS_STORAGE_KEY, JSON.stringify([...current]));
+  } catch {
+    // Ignore storage issues
+  }
+}
+
+function checkIsOrganizer(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("organizer") || params.has("admin")) return true;
+    if (window.sessionStorage?.getItem("grace_is_organizer") === "true") return true;
+    if (window.sessionStorage?.getItem("grace_organizer_passphrase")) return true;
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 export function AvailabilityPage() {
   useDocumentTitle("Grace — when you can come");
   const suggested = useMemo(() => nextOpenDay(), []);
   const [entries, setEntries] = useState<AvailabilityEntry[]>([]);
+  const [myIds, setMyIds] = useState<Set<string>>(() => loadMyAnswerIds());
+  const [isOrganizer, setIsOrganizer] = useState(() => checkIsOrganizer());
   const [loading, setLoading] = useState(true);
   const [awaitingList, setAwaitingList] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -107,6 +158,8 @@ export function AvailabilityPage() {
       const pending = pendingSave.current;
       const matched = pending ? shared.find((row) => row.id === pending.id || sameOffer(row, pending)) : undefined;
       if (matched) {
+        recordMyAnswerId(matched.id);
+        setMyIds((curr) => (curr.has(matched.id) ? curr : new Set([...curr, matched.id])));
         const nextThanks = thanksCopy(matched.name);
         const alreadyThanks = bannerText.current === nextThanks;
         pendingSave.current = null;
@@ -383,6 +436,12 @@ export function AvailabilityPage() {
     try {
       const outcome = await removeSharedAnswer(entry.id);
       heldIds.current.delete(entry.id);
+      forgetMyAnswerId(entry.id);
+      setMyIds((curr) => {
+        const next = new Set(curr);
+        next.delete(entry.id);
+        return next;
+      });
       setEntries((current) => current.filter((item) => item.id !== entry.id));
       if (outcome === "already-removed") {
         keepProblem.current = true;
@@ -444,6 +503,10 @@ export function AvailabilityPage() {
     try {
       const published = await publishSharedAnswer(entry);
       const saved = published.entry;
+      if (saved.id && saved.fromServer) {
+        recordMyAnswerId(saved.id);
+        setMyIds((curr) => (curr.has(saved.id) ? curr : new Set([...curr, saved.id])));
+      }
       pendingSave.current = saved;
       if (saved.fromServer) heldIds.current.set(saved.id, "fresh");
       setEntries((current) => [saved, ...current.filter((item) => item.id !== saved.id && !sameOffer(item, saved))]);
@@ -764,7 +827,7 @@ export function AvailabilityPage() {
                     </li>
                   ))}
                 </ul>
-                {entry.fromServer && (
+                {entry.fromServer && (isOrganizer || myIds.has(entry.id)) && (
                   <button type="button" className="text-btn" onClick={(event) => askRemove(entry, event)}>
                     Remove {entry.name}
                   </button>
@@ -773,6 +836,47 @@ export function AvailabilityPage() {
             ))}
           </ul>
         ) : null}
+        <div className="organizer-toggle-row">
+          {isOrganizer ? (
+            <>
+              <span className="organizer-badge">Organizer mode</span>
+              <button
+                type="button"
+                className="text-btn"
+                onClick={() => {
+                  try {
+                    sessionStorage.removeItem("grace_is_organizer");
+                    sessionStorage.removeItem("grace_organizer_passphrase");
+                  } catch {
+                    // Ignore storage issues
+                  }
+                  setIsOrganizer(false);
+                }}
+              >
+                Exit organizer mode
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="text-btn"
+              onClick={() => {
+                const entered = window.prompt("Enter organizer passphrase:");
+                if (entered !== null) {
+                  try {
+                    sessionStorage.setItem("grace_is_organizer", "true");
+                    if (entered.trim()) sessionStorage.setItem("grace_organizer_passphrase", entered.trim());
+                  } catch {
+                    // Ignore storage issues
+                  }
+                  setIsOrganizer(true);
+                }
+              }}
+            >
+              Organizer access
+            </button>
+          )}
+        </div>
       </section>
 
       <dialog

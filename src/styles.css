@@ -2129,6 +2129,26 @@ input[type="radio"] {
   vertical-align: middle;
 }
 
+.organizer-toggle-row {
+  margin-top: 1.25rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed rgba(28, 25, 20, 0.15);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.organizer-badge {
+  font-weight: 600;
+  color: var(--focus, #8a3828);
+  background: #f8ebe6;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
 @media (max-width: 640px) {
   .collector {
     width: min(40rem, calc(100% - 1.25rem));
