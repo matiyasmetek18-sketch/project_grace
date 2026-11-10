@@ -13,16 +13,23 @@ function widthOf(start: string, end: string): number {
   return Math.max(0, leftOf(end) - leftOf(start));
 }
 
-export function CommonTimes({ answers }: { answers: Answer[] }) {
+export function CommonTimes({
+  answers,
+  status = "ready",
+}: {
+  answers: Answer[];
+  status?: "loading" | "error" | "ready";
+}) {
   const covered = coverageSpans(answers);
   const shared = commonSpans(answers);
   const dates = [...new Set(covered.map((span) => span.date))];
+  const waiting = status !== "ready";
 
   return (
     <section className="common" aria-labelledby="common-title">
       <h2 id="common-title">Common times</h2>
       {answers.length < 2 ? (
-        <p>When a second person adds a time, the stretches you share will show up here.</p>
+        waiting ? null : <p>When a second person adds a time, the stretches you share will show up here.</p>
       ) : shared.length === 0 ? (
         <p>No overlapping time yet. The bars below show when each person can come.</p>
       ) : (

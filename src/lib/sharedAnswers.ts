@@ -10,14 +10,10 @@ const COLLECTION = "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7a
 
 type StoredAnswer = Partial<AvailabilityEntry> & { _id?: string };
 
-function toEntry(record: StoredAnswer): AvailabilityEntry {
-  return {
-    id: typeof record.id === "string" && record.id ? record.id : record._id || "",
-    name: typeof record.name === "string" ? record.name : "",
-    note: typeof record.note === "string" ? record.note : "",
-    ranges: Array.isArray(record.ranges) ? record.ranges : [],
-    createdAt: typeof record.createdAt === "string" ? record.createdAt : "",
-  };
+function echoedId(body: unknown): string {
+  if (!body || typeof body !== "object") return "";
+  const record = body as StoredAnswer;
+  return typeof record._id === "string" ? record._id.trim() : "";
 }
 
 export async function fetchSharedAnswers(): Promise<AvailabilityEntry[]> {
@@ -26,9 +22,7 @@ export async function fetchSharedAnswers(): Promise<AvailabilityEntry[]> {
   const body: unknown = await response.json();
   if (body == null) return [];
   if (!Array.isArray(body)) throw new Error("The shared list did not load.");
-  return sanitizeEntries(body.map((item) => toEntry(item as StoredAnswer))).sort((a, b) =>
-    b.createdAt.localeCompare(a.createdAt),
-  );
+  return sanitizeEntries(body);
 }
 
 export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<AvailabilityEntry> {
@@ -43,10 +37,17 @@ export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<Ava
     }),
   });
   if (!response.ok) throw new Error("The shared list did not save this answer.");
-  const saved = (await response.json()) as StoredAnswer;
-  const [entrySaved] = sanitizeEntries([toEntry(saved)]);
-  if (!entrySaved) throw new Error("The shared list did not save this answer.");
-  return entrySaved;
+  let body: unknown = null;
+  try {
+    body = await response.json();
+  } catch {
+    return entry;
+  }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return entry;
+  const [saved] = sanitizeEntries([body]);
+  if (saved) return saved;
+  const serverId = echoedId(body);
+  return serverId ? { ...entry, id: serverId } : entry;
 }
 
 export async function removeSharedAnswer(id: string): Promise<void> {

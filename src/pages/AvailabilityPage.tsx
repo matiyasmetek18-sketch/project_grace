@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import { CommonTimes } from "../components/CommonTimes";
 import type { TimeRange } from "../types";
 import type { AvailabilityEntry } from "../lib/availabilityStore";
 import { fetchSharedAnswers, publishSharedAnswer, removeSharedAnswer } from "../lib/sharedAnswers";
 import { uid } from "../lib/id";
 import {
+  DUPLICATE_DAY_MESSAGE,
   dayChoiceMessage,
   formatDayNum,
   formatFullDate,
@@ -45,6 +46,7 @@ export function AvailabilityPage() {
   const suggested = useMemo(() => nextOpenDay(), []);
   const [entries, setEntries] = useState<AvailabilityEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [listProblem, setListProblem] = useState("");
   const [name, setName] = useState("");
   const [note, setNote] = useState("");
@@ -52,55 +54,117 @@ export function AvailabilityPage() {
   const [dayDraft, setDayDraft] = useState(suggested);
   const [extraDraft, setExtraDraft] = useState("");
   const [dayError, setDayError] = useState("");
+  const [dayErrorTick, setDayErrorTick] = useState(0);
   const [ranges, setRanges] = useState<TimeRange[]>([]);
   const [customStart, setCustomStart] = useState("09:00");
   const [customEnd, setCustomEnd] = useState("11:00");
-  const [hint, setHint] = useState("");
   const [formError, setFormError] = useState("");
+  const [formErrorTick, setFormErrorTick] = useState(0);
   const [thanks, setThanks] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [pendingRemove, setPendingRemove] = useState<AvailabilityEntry | null>(null);
+  const [removing, setRemoving] = useState(false);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  const dayErrorRef = useRef<HTMLParagraphElement>(null);
+  const timeErrorRef = useRef<HTMLParagraphElement>(null);
+  const listRequest = useRef(0);
+  const savingRef = useRef(false);
+  const removingRef = useRef(false);
+  const removeTrigger = useRef<HTMLButtonElement | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const savedTitleRef = useRef<HTMLHeadingElement>(null);
+  const afterRemoveFocus = useRef<"trigger" | "list" | null>(null);
+  const todayIso = formatISODate(new Date());
+
+  const loadList = useCallback(async () => {
+    const requestId = ++listRequest.current;
+    try {
+      const shared = await fetchSharedAnswers();
+      if (requestId !== listRequest.current) return;
+      setEntries(shared);
+      setListProblem("");
+      setLoadFailed(false);
+    } catch {
+      if (requestId !== listRequest.current) return;
+      setListProblem("The shared list did not load.");
+      setLoadFailed(true);
+    } finally {
+      if (requestId === listRequest.current) setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let stop = false;
-    async function refresh() {
-      try {
-        const shared = await fetchSharedAnswers();
-        if (!stop) {
-          setEntries(shared);
-          setListProblem("");
-        }
-      } catch {
-        if (!stop) setListProblem("The shared list did not load. Refresh the page and try again.");
-      } finally {
-        if (!stop) setLoading(false);
-      }
-    }
-    void refresh();
+    void loadList();
     function onVisible() {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") void loadList();
     }
     document.addEventListener("visibilitychange", onVisible);
     return () => {
-      stop = true;
+      listRequest.current += 1;
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, []);
+  }, [loadList]);
+
+  function showFormError(message: string) {
+    setFormError(message);
+    setFormErrorTick((tick) => tick + 1);
+  }
+
+  function showDayError(message: string) {
+    setDayError(message);
+    setDayErrorTick((tick) => tick + 1);
+  }
+
+  useEffect(() => {
+    if (formError) errorRef.current?.focus();
+  }, [formError, formErrorTick]);
+
+  useEffect(() => {
+    if (dayError) dayErrorRef.current?.focus();
+  }, [dayError, dayErrorTick]);
+
+  useEffect(() => {
+    if (dayError !== DUPLICATE_DAY_MESSAGE) return;
+    const draft = (days.length === 0 ? dayDraft : extraDraft).trim();
+    if (!days.includes(draft)) setDayError("");
+  }, [dayError, days, dayDraft, extraDraft]);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (pendingRemove) {
+      if (dialog && !dialog.open) dialog.showModal();
+      cancelButtonRef.current?.focus();
+      return;
+    }
+    const where = afterRemoveFocus.current;
+    afterRemoveFocus.current = null;
+    if (where === "trigger") removeTrigger.current?.focus();
+    if (where === "list") savedTitleRef.current?.focus();
+  }, [pendingRemove]);
 
   const startOptions = useMemo(() => halfHours(DAY_START, "20:30"), []);
   const endOptions = useMemo(() => halfHours("07:30", DAY_END), []);
   const timeError = minutes(customEnd) <= minutes(customStart);
   const orderedDays = [...days].sort();
+  const nameInvalid = formError.startsWith("Add your name");
+  const daysInvalid = formError.startsWith("Add the day") || formError.startsWith("Add a time");
+  const sendInvalid = formError.startsWith("This answer was not sent");
+  const listStatus = loading && entries.length === 0 ? "loading" : loadFailed && entries.length === 0 ? "error" : "ready";
+
+  function dayDescribedBy(): string {
+    return ["day-help", dayError ? "day-error" : "", daysInvalid ? "form-error" : ""].filter(Boolean).join(" ");
+  }
 
   function addDay(value: string) {
-    const message = dayChoiceMessage(value, days);
+    const message = dayChoiceMessage(value, days, todayIso);
     if (message) {
-      setDayError(message);
+      showDayError(message);
       return;
     }
     setDays((current) => [...current, value]);
     setRanges((current) => copyHoursOnto(value, current));
     setDayError("");
-    setHint("");
     setFormError("");
     setExtraDraft("");
   }
@@ -123,7 +187,7 @@ export function AvailabilityPage() {
       return { dates: days, ranges, error: null };
     }
     if (days.includes(draft)) return { dates: days, ranges, error: null };
-    const message = dayChoiceMessage(draft, days);
+    const message = dayChoiceMessage(draft, days, todayIso);
     if (message) return { dates: [], ranges, error: message };
     return { dates: [...days, draft], ranges: copyHoursOnto(draft, ranges), error: null };
   }
@@ -139,8 +203,7 @@ export function AvailabilityPage() {
   function togglePreset(start: string, end: string) {
     const ready = withDraftDay();
     if (ready.error) {
-      setDayError(ready.error);
-      setHint("");
+      showDayError(ready.error);
       return;
     }
     const on = ready.dates.every((date) =>
@@ -153,45 +216,82 @@ export function AvailabilityPage() {
     setRanges(nextRanges);
     rememberDraft(ready.dates);
     setDayError("");
-    setHint("");
     setFormError("");
   }
 
   function addHours(start: string, end: string) {
     if (minutes(end) <= minutes(start)) {
-      setHint("The end needs to be later than the start.");
+      timeErrorRef.current?.focus();
       return;
     }
     const ready = withDraftDay();
     if (ready.error) {
-      setDayError(ready.error);
-      setHint("");
+      showDayError(ready.error);
       return;
     }
     setDays(ready.dates);
     setRanges(keepSeparateRanges([...ready.ranges, ...ready.dates.map((date) => ({ date, start, end }))]));
     rememberDraft(ready.dates);
     setDayError("");
-    setHint("");
     setFormError("");
+  }
+
+  function retryLoad() {
+    setLoading(true);
+    setListProblem("");
+    setLoadFailed(false);
+    void loadList();
+  }
+
+  function askRemove(entry: AvailabilityEntry, event: MouseEvent<HTMLButtonElement>) {
+    removeTrigger.current = event.currentTarget;
+    setPendingRemove(entry);
+  }
+
+  function cancelRemove() {
+    if (removingRef.current) return;
+    afterRemoveFocus.current = "trigger";
+    dialogRef.current?.close();
+    setPendingRemove(null);
+  }
+
+  async function confirmRemove() {
+    if (!pendingRemove || removingRef.current) return;
+    const entry = pendingRemove;
+    removingRef.current = true;
+    setRemoving(true);
+    try {
+      await removeSharedAnswer(entry.id);
+      setEntries((current) => current.filter((item) => item.id !== entry.id));
+      setListProblem("");
+      afterRemoveFocus.current = "list";
+      dialogRef.current?.close();
+      setPendingRemove(null);
+    } catch {
+      setListProblem("That answer was not removed. Try again.");
+      afterRemoveFocus.current = "trigger";
+      dialogRef.current?.close();
+      setPendingRemove(null);
+    } finally {
+      removingRef.current = false;
+      setRemoving(false);
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (savingRef.current) return;
     if (!name.trim()) {
-      setFormError("Add your name so people know who can come.");
-      errorRef.current?.focus();
+      showFormError("Add your name so people know who can come.");
       return;
     }
     if (days.length === 0) {
-      setFormError("Add the day you can come.");
-      errorRef.current?.focus();
+      showFormError("Add the day you can come.");
       return;
     }
     const missing = days.filter((date) => !ranges.some((range) => range.date === date));
     if (missing.length > 0) {
-      setFormError("Add a time for each day. It can be as short as you like.");
-      errorRef.current?.focus();
+      showFormError("Add a time for each day. It can be as short as you like.");
       return;
     }
     const entry: AvailabilityEntry = {
@@ -201,23 +301,30 @@ export function AvailabilityPage() {
       ranges: keepSeparateRanges(ranges),
       createdAt: new Date().toISOString(),
     };
+    savingRef.current = true;
+    setSaving(true);
     try {
       const saved = await publishSharedAnswer(entry);
-      setEntries((current) => [saved, ...current.filter((item) => item.id !== entry.id)]);
+      listRequest.current += 1;
+      setLoading(false);
+      setEntries((current) => [saved, ...current.filter((item) => item.id !== saved.id && item.id !== entry.id)]);
       setListProblem("");
+      setLoadFailed(false);
       setThanks(saved.name);
+      setName("");
+      setNote("");
+      setDays([]);
+      setRanges([]);
+      setDayDraft(suggested);
+      setExtraDraft("");
+      setDayError("");
+      setFormError("");
     } catch {
-      setFormError("This answer was not sent. Try again.");
-      errorRef.current?.focus();
-      return;
+      showFormError("This answer was not sent. Try again.");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
-    setName("");
-    setNote("");
-    setDays([]);
-    setRanges([]);
-    setDayDraft(suggested);
-    setExtraDraft("");
-    setFormError("");
   }
 
   return (
@@ -233,7 +340,7 @@ export function AvailabilityPage() {
 
       <form className="collector-card" onSubmit={submit} noValidate>
         {formError && (
-          <p className="form-errors" role="alert" tabIndex={-1} ref={errorRef}>
+          <p id="form-error" className="form-errors" role="alert" tabIndex={-1} ref={errorRef}>
             {formError}
           </p>
         )}
@@ -251,6 +358,8 @@ export function AvailabilityPage() {
             autoComplete="name"
             maxLength={60}
             value={name}
+            aria-invalid={nameInvalid || undefined}
+            aria-describedby={nameInvalid ? "form-error" : undefined}
             onChange={(change) => setName(change.target.value)}
           />
         </div>
@@ -273,8 +382,8 @@ export function AvailabilityPage() {
                     <span className="chosen-date">{formatFullDate(date)}</span>
                   </span>
                   <button type="button" className="text-btn" onClick={() => removeDay(date)}>
-                    Remove
-                    <span className="sr-only"> {formatFullDate(date)}</span>
+                    <span aria-hidden="true">Remove</span>
+                    <span className="sr-only">Remove {formatFullDate(date)}</span>
                   </button>
                 </li>
               ))}
@@ -289,8 +398,9 @@ export function AvailabilityPage() {
                   id="day-one"
                   type="date"
                   value={dayDraft}
-                  aria-describedby="day-help"
-                  aria-invalid={Boolean(dayError)}
+                  min={todayIso}
+                  aria-describedby={dayDescribedBy()}
+                  aria-invalid={Boolean(dayError) || daysInvalid || undefined}
                   onChange={(change) => {
                     setDayDraft(change.target.value);
                     setDayError("");
@@ -309,8 +419,9 @@ export function AvailabilityPage() {
                   id="day-another"
                   type="date"
                   value={extraDraft}
-                  aria-describedby="day-help"
-                  aria-invalid={Boolean(dayError)}
+                  min={todayIso}
+                  aria-describedby={dayDescribedBy()}
+                  aria-invalid={Boolean(dayError) || daysInvalid || undefined}
                   onChange={(change) => {
                     setExtraDraft(change.target.value);
                     setDayError("");
@@ -323,7 +434,7 @@ export function AvailabilityPage() {
             </div>
           )}
           {dayError && (
-            <p className="field-error" role="alert">
+            <p id="day-error" className="field-error" role="alert" tabIndex={-1} ref={dayErrorRef}>
               {dayError}
             </p>
           )}
@@ -370,7 +481,8 @@ export function AvailabilityPage() {
                   End
                   <select
                     value={customEnd}
-                    aria-invalid={timeError}
+                    aria-invalid={timeError || undefined}
+                    aria-describedby={timeError ? "hours-error" : undefined}
                     onChange={(change) => setCustomEnd(change.target.value)}
                   >
                     {endOptions.map((option) => (
@@ -384,15 +496,14 @@ export function AvailabilityPage() {
                   Add these hours
                 </button>
               </div>
-              {timeError && <p className="field-error">The end needs to be later than the start.</p>}
+              {timeError && (
+                <p id="hours-error" className="field-error" role="alert" tabIndex={-1} ref={timeErrorRef}>
+                  The end needs to be later than the start.
+                </p>
+              )}
             </div>
           </div>
 
-          {hint && (
-            <p className="field-error" role="status">
-              {hint}
-            </p>
-          )}
           {ranges.length > 0 && (
             <ul className="added-ranges">
               {ranges.map((range) => (
@@ -409,8 +520,8 @@ export function AvailabilityPage() {
                       )
                     }
                   >
-                    Remove
-                    <span className="sr-only"> {formatRange(range)}</span>
+                    <span aria-hidden="true">Remove</span>
+                    <span className="sr-only">Remove {formatRange(range)}</span>
                   </button>
                 </li>
               ))}
@@ -430,8 +541,13 @@ export function AvailabilityPage() {
         </div>
 
         <div className="join-submit">
-          <button type="submit" className="btn btn-primary">
-            Share when I can come
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={saving}
+            aria-describedby={sendInvalid ? "form-error" : undefined}
+          >
+            {saving ? "Sending…" : "Share when I can come"}
           </button>
           <p>
             {days.length === 0
@@ -441,21 +557,28 @@ export function AvailabilityPage() {
         </div>
       </form>
 
-      <CommonTimes answers={entries} />
+      <CommonTimes answers={entries} status={listStatus} />
 
-      <section className="saved" aria-labelledby="saved-title">
-        <h2 id="saved-title">Everyone's answers</h2>
+      <section className="saved" aria-labelledby="saved-title" aria-busy={loading}>
+        <h2 id="saved-title" tabIndex={-1} ref={savedTitleRef}>
+          Everyone's answers
+        </h2>
         <p className="field-help">Anyone who opens this page sees the same list.</p>
         {listProblem && (
-          <p className="banner banner-warn" role="alert">
-            {listProblem}
-          </p>
+          <div className="banner banner-warn" role="alert">
+            <p>{listProblem}</p>
+            {loadFailed && (
+              <button type="button" className="btn" onClick={retryLoad}>
+                Try again
+              </button>
+            )}
+          </div>
         )}
-        {loading ? (
+        {loading && entries.length === 0 ? (
           <p className="saved-empty">Loading answers…</p>
-        ) : entries.length === 0 ? (
+        ) : entries.length === 0 && !loadFailed ? (
           <p className="saved-empty">No one has added a time yet.</p>
-        ) : (
+        ) : entries.length > 0 ? (
           <ul className="saved-list">
             {entries.map((entry) => (
               <li key={entry.id}>
@@ -468,25 +591,66 @@ export function AvailabilityPage() {
                     </li>
                   ))}
                 </ul>
-                <button
-                  type="button"
-                  className="text-btn"
-                  onClick={() => {
-                    void removeSharedAnswer(entry.id)
-                      .then(() => {
-                        setEntries((current) => current.filter((item) => item.id !== entry.id));
-                        setListProblem("");
-                      })
-                      .catch(() => setListProblem("That answer was not removed. Try again."));
-                  }}
-                >
+                <button type="button" className="text-btn" onClick={(event) => askRemove(entry, event)}>
                   Remove {entry.name}
                 </button>
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
       </section>
+
+      <dialog
+        ref={dialogRef}
+        className="sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="remove-title"
+        aria-describedby="remove-copy"
+        onCancel={(event) => {
+          event.preventDefault();
+          cancelRemove();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            cancelRemove();
+            return;
+          }
+          if (event.key !== "Tab") return;
+          const dialog = dialogRef.current;
+          if (!dialog) return;
+          const items = [...dialog.querySelectorAll<HTMLElement>("button, [href], input, select, textarea")].filter(
+            (item) => !item.hasAttribute("disabled"),
+          );
+          if (items.length === 0) return;
+          const first = items[0];
+          const last = items[items.length - 1];
+          const active = document.activeElement;
+          if (event.shiftKey && (active === first || !dialog.contains(active))) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+            event.preventDefault();
+            first.focus();
+          }
+        }}
+      >
+        {pendingRemove && (
+          <>
+            <h2 id="remove-title">Remove {pendingRemove.name}?</h2>
+            <p id="remove-copy">{pendingRemove.name}&apos;s answer will be taken off the shared list.</p>
+            <div className="dialog-actions">
+              <button ref={cancelButtonRef} type="button" className="btn btn-ghost" onClick={cancelRemove}>
+                Cancel
+              </button>
+              <button type="button" className="btn" disabled={removing} onClick={() => void confirmRemove()}>
+                {removing ? "Removing…" : `Remove ${pendingRemove.name}`}
+              </button>
+            </div>
+          </>
+        )}
+      </dialog>
     </div>
   );
 }

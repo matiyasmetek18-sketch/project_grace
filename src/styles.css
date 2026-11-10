@@ -175,6 +175,9 @@ button {
   left: 1rem;
   top: -4rem;
   z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   background: var(--paper-strong);
   color: var(--ink);
   padding: 0.6rem 0.9rem;
@@ -278,8 +281,19 @@ button.btn,
   line-height: 1.2;
 }
 
+.btn:disabled,
+button:disabled {
+  opacity: 1;
+  cursor: wait;
+}
+
+.btn:disabled {
+  background: #1b3326;
+  color: #fffdf8;
+}
+
 .btn-small {
-  min-height: 2.45rem;
+  min-height: 44px;
   padding: 0.4rem 0.9rem;
   font-size: 0.95rem;
 }
@@ -322,8 +336,9 @@ button.btn-line,
 
 .text-btn {
   border: none;
-  padding: 0.2rem 0;
-  min-height: 2.4rem;
+  padding: 0.4rem 0.75rem;
+  min-height: 44px;
+  min-width: 44px;
   color: var(--russet);
   text-decoration: underline;
   text-underline-offset: 0.2rem;
@@ -1117,7 +1132,7 @@ button.btn-line,
 .preset {
   border-radius: 0.95rem;
   border: 1px solid var(--line);
-  min-height: 2.7rem;
+  min-height: 44px;
   padding: 0.45rem 0.75rem;
 }
 
@@ -1345,6 +1360,10 @@ input[type="radio"] {
   border-color: #e0b2a6;
   color: #5d2418;
   margin-top: 0.8rem;
+}
+
+.banner .btn {
+  margin-top: 0.75rem;
 }
 
 .missing,
@@ -1712,6 +1731,12 @@ input[type="radio"] {
   line-height: 1.45;
 }
 
+.collector input::placeholder,
+.collector textarea::placeholder {
+  color: #3a332b;
+  opacity: 1;
+}
+
 .collector input:focus-visible,
 .collector select:focus-visible,
 .collector textarea:focus-visible {
@@ -2031,6 +2056,26 @@ input[type="radio"] {
   .chosen-day .text-btn {
     margin-left: 0;
     width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .flow-band,
+  body::after {
+    animation: none;
+  }
+
+  .btn:hover,
+  .day:hover,
+  .preset:hover,
+  .plot:hover,
+  .room:hover,
+  .event-card:hover {
+    transform: none;
   }
 }
 

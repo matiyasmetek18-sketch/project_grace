@@ -1,5 +1,5 @@
 import type { TimeRange } from "../types";
-import { formatHHMM, minutes } from "./time";
+import { formatHHMM, mergeRanges, minutes } from "./time";
 
 export type Answer = {
   id: string;
@@ -34,8 +34,8 @@ function spansOnDate(date: string, answers: Answer[]): TimeSpan[] {
   const intervals: { id: string; name: string; start: number; end: number }[] = [];
   const points = new Set<number>();
   for (const answer of answers) {
-    for (const range of answer.ranges) {
-      if (range.date !== date) continue;
+    const own = mergeRanges(answer.ranges.filter((range) => range.date === date));
+    for (const range of own) {
       const start = Math.max(DAY_START, minutes(range.start));
       const end = Math.min(DAY_END, minutes(range.end));
       if (!(end > start)) continue;
@@ -51,7 +51,13 @@ function spansOnDate(date: string, answers: Answer[]): TimeSpan[] {
     const end = marks[index + 1];
     const present = intervals.filter((interval) => interval.start <= start && interval.end > start);
     if (present.length === 0) continue;
-    const names = present.map((interval) => interval.name);
+    const names: string[] = [];
+    const seen = new Set<string>();
+    for (const interval of present) {
+      if (seen.has(interval.id)) continue;
+      seen.add(interval.id);
+      names.push(interval.name);
+    }
     const previous = spans[spans.length - 1];
     const samePeople =
       previous !== undefined &&

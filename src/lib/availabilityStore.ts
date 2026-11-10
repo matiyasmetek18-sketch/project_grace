@@ -33,16 +33,18 @@ function isRange(value: unknown): value is TimeRange {
 
 export function sanitizeEntries(value: unknown): AvailabilityEntry[] {
   if (!Array.isArray(value)) return [];
-  return value
+  const entries = value
     .map((item) => {
       if (!item || typeof item !== "object") return null;
-      const entry = item as Partial<AvailabilityEntry>;
+      const entry = item as Partial<AvailabilityEntry> & { _id?: unknown };
       if (typeof entry.name !== "string") return null;
       const name = entry.name.trim().slice(0, 60);
       const ranges = Array.isArray(entry.ranges) ? keepSeparateRanges(entry.ranges.filter(isRange)).slice(0, 40) : [];
       if (!name || ranges.length === 0) return null;
+      const serverId = typeof entry._id === "string" ? entry._id.trim().slice(0, 80) : "";
+      const clientId = typeof entry.id === "string" ? entry.id.trim().slice(0, 80) : "";
       return {
-        id: typeof entry.id === "string" ? entry.id.slice(0, 80) : uid("person"),
+        id: serverId || clientId || uid("person"),
         name,
         note: typeof entry.note === "string" ? entry.note.slice(0, 240) : "",
         ranges,
@@ -50,7 +52,8 @@ export function sanitizeEntries(value: unknown): AvailabilityEntry[] {
       };
     })
     .filter((entry): entry is AvailabilityEntry => entry !== null)
-    .slice(0, 200);
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return entries.slice(0, 200);
 }
 
 export function loadEntries(storage: StorageLike | null = safeLocal()): AvailabilityEntry[] {

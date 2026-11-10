@@ -2,17 +2,15 @@
 
 Grace is a one-page site for collecting availability. A person adds their name, the days and times they can come, and an optional note. They do not have to stay for any set number of hours.
 
-No account is required. No host name, phone, or email is shown.
+No account is required.
 
 ## Open it
 
 https://matiyasmetek18-sketch.github.io/project_grace/
 
-That address is the public site. Nothing needs to be installed. A refresh on a gathering link stays on Grace, because GitHub Pages serves the app for unknown paths.
+That address is the public site. Nothing needs to be installed.
 
 ## Run it locally
-
-You need Node.js 20 or newer.
 
 ```bash
 npm install
@@ -32,15 +30,17 @@ npm run preview
 
 `npm run build` writes a static site to `dist/`. `npm run preview` serves that build.
 
+The Pages workflow installs dependencies, runs the tests and the type check, then builds the site with Node 22.
+
 ## What is saved
 
-Answers are stored in one shared public list. Anyone who opens the page can read them and add their own. There is no account. People add one day at a time. Sundays and Thursdays are not accepted, and a day already on the list cannot be added again. The page also draws where those times overlap.
+Answers live in one public list. Anyone who can open the site can read every answer and can currently remove any answer. Nothing is saved as a private copy on the device.
 
-Saved on this device:
+A person can add more than one day. Each day is added on its own. Sundays and Thursdays are not accepted, a day already on that person's list cannot be added again, and a day that has already passed is not accepted. The page shows where the times overlap.
 
-- The name you enter
-- The days and times you add
-- An optional note
+## Limitations
+
+Answers are stored in one public list. There are no accounts. Anyone using the site can see every answer and remove any answer, and the whole list could be wiped. Do not enter sensitive information.
 
 ## Stack
 

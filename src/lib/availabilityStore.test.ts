@@ -1,0 +1,43 @@
+import { describe, expect, it } from "vitest";
+import { sanitizeEntries } from "./availabilityStore";
+
+const range = { date: "2026-11-13", start: "08:00", end: "09:00" };
+
+function entry(index: number) {
+  return {
+    id: `client-${index}`,
+    name: "Nia",
+    note: "",
+    ranges: [range],
+    createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString(),
+  };
+}
+
+describe("sanitizeEntries", () => {
+  it("keeps the newest answers when more than 200 are returned", () => {
+    const raw = Array.from({ length: 201 }, (_, index) => entry(index));
+    const sanitized = sanitizeEntries(raw);
+    expect(sanitized).toHaveLength(200);
+    expect(sanitized[0].id).toBe("client-200");
+    expect(sanitized.some((item) => item.id === "client-0")).toBe(false);
+  });
+
+  it("uses the server id instead of a client id", () => {
+    const [saved] = sanitizeEntries([
+      {
+        _id: "server-1",
+        id: "spoof-id",
+        name: "Nia",
+        note: "",
+        ranges: [range],
+        createdAt: "2026-11-10T00:00:00.000Z",
+      },
+    ]);
+    expect(saved.id).toBe("server-1");
+  });
+
+  it("keeps a client id when the server did not assign one", () => {
+    const [saved] = sanitizeEntries([entry(1)]);
+    expect(saved.id).toBe("client-1");
+  });
+});
