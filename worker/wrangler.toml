@@ -3,7 +3,7 @@ main = "index.ts"
 compatibility_date = "2024-11-01"
 
 [vars]
-UPSTREAM_BIN_URL = "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7ad27cd2f39"
+UPSTREAM_BIN_URL = "https://dontlosedata.site/api/v1/23135ecc-b637-4a2c-b47b-5ceed689f91c"
 # Set these as secrets using:
 #   npx wrangler secret put BIN_API_KEY
 #   npx wrangler secret put ORGANIZER_PASSPHRASE

@@ -27,7 +27,7 @@ export default {
     }
 
     const url = new URL(request.url);
-    const upstreamBase = (env.UPSTREAM_BIN_URL || "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7ad27cd2f39").replace(/\/$/, "");
+    const upstreamBase = (env.UPSTREAM_BIN_URL || "https://dontlosedata.site/api/v1/23135ecc-b637-4a2c-b47b-5ceed689f91c").replace(/\/$/, "");
 
     // Path forwarding:
     // e.g. worker.domain/id/xyz -> upstreamBase/id/xyz
@@ -41,8 +41,8 @@ export default {
 
     // If an API key is configured for the bin, attach it to all upstream requests
     if (env.BIN_API_KEY) {
-      headers.set("X-Master-Key", env.BIN_API_KEY);
       headers.set("Authorization", `Bearer ${env.BIN_API_KEY}`);
+      headers.set("X-API-Key", env.BIN_API_KEY);
     }
 
     // Protect DELETE operations with organizer passphrase
