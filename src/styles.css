@@ -175,6 +175,9 @@ button {
   left: 1rem;
   top: -4rem;
   z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   background: var(--paper-strong);
   color: var(--ink);
   padding: 0.6rem 0.9rem;
@@ -278,8 +281,31 @@ button.btn,
   line-height: 1.2;
 }
 
+.btn:disabled,
+button:disabled {
+  opacity: 1;
+}
+
+button.is-busy {
+  cursor: wait;
+}
+
+.btn:disabled {
+  background: #1b3326;
+  color: #fffdf8;
+}
+
+button.btn-ghost:disabled,
+.btn-ghost:disabled,
+.btn-ghost[aria-disabled="true"] {
+  background: transparent;
+  color: #1c1914;
+  border-color: var(--line);
+  opacity: 0.55;
+}
+
 .btn-small {
-  min-height: 2.45rem;
+  min-height: 44px;
   padding: 0.4rem 0.9rem;
   font-size: 0.95rem;
 }
@@ -322,8 +348,9 @@ button.btn-line,
 
 .text-btn {
   border: none;
-  padding: 0.2rem 0;
-  min-height: 2.4rem;
+  padding: 0.4rem 0.75rem;
+  min-height: 44px;
+  min-width: 44px;
   color: var(--russet);
   text-decoration: underline;
   text-underline-offset: 0.2rem;
@@ -1104,6 +1131,10 @@ button.btn-line,
   color: var(--russet);
 }
 
+.field-error {
+  padding: 0.2rem 0.35rem;
+}
+
 [aria-invalid="true"] {
   border-color: var(--russet);
 }
@@ -1117,7 +1148,7 @@ button.btn-line,
 .preset {
   border-radius: 0.95rem;
   border: 1px solid var(--line);
-  min-height: 2.7rem;
+  min-height: 44px;
   padding: 0.45rem 0.75rem;
 }
 
@@ -1195,6 +1226,7 @@ button.btn-line,
 
 .preset-time {
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .custom-hours {
@@ -1345,6 +1377,15 @@ input[type="radio"] {
   border-color: #e0b2a6;
   color: #5d2418;
   margin-top: 0.8rem;
+}
+
+.banner .btn {
+  margin-top: 0.75rem;
+}
+
+#thanks,
+#save-unconfirmed {
+  scroll-margin-top: 5.2rem;
 }
 
 .missing,
@@ -1621,10 +1662,7 @@ input[type="radio"] {
 
   .btn:hover,
   .day:hover,
-  .preset:hover,
-  .plot:hover,
-  .room:hover,
-  .event-card:hover {
+  .preset:hover {
     transform: none;
   }
 }
@@ -1710,6 +1748,12 @@ input[type="radio"] {
 .collector textarea {
   min-height: 6.5rem;
   line-height: 1.45;
+}
+
+.collector input::placeholder,
+.collector textarea::placeholder {
+  color: #3a332b;
+  opacity: 1;
 }
 
 .collector input:focus-visible,
@@ -1810,7 +1854,7 @@ input[type="radio"] {
 }
 
 .hours-board > p,
-.own-hours > p {
+.own-hours > p:not(.field-error) {
   color: #2a241c;
   max-width: 36rem;
 }
@@ -1918,6 +1962,7 @@ input[type="radio"] {
   font-family: var(--serif);
   font-size: 1.25rem;
   font-weight: 560;
+  white-space: nowrap;
 }
 
 .flow {
@@ -1928,6 +1973,10 @@ input[type="radio"] {
 .flow-day h3 {
   font-size: 1.15rem;
   margin-bottom: 0.35rem;
+}
+
+.flow-scale {
+  min-width: 0;
 }
 
 .flow-track {
@@ -1948,28 +1997,76 @@ input[type="radio"] {
   animation: flow-in 0.7s ease;
 }
 
-.flow-band[data-count="1"] {
-  background: rgba(36, 56, 44, 0.35);
+/* Lightest to darkest. Each mix stays at least 3:1 on #efe6d6.
+   A third step that is also 3:1 darker than the middle would be below black,
+   so the middle and the darkest step carry an outline as well as the fill. */
+.flow-band[data-count="1"],
+.flow-swatch[data-count="1"] {
+  background: linear-gradient(rgba(60, 104, 75, 0.72), rgba(60, 104, 75, 0.72)), #efe6d6;
 }
 
-.flow-band[data-count="2"] {
-  background: rgba(36, 56, 44, 0.72);
+.flow-band[data-count="2"],
+.flow-swatch[data-count="2"] {
+  background: linear-gradient(rgba(27, 51, 38, 0.815), rgba(27, 51, 38, 0.815)), #efe6d6;
+  box-shadow: inset 0 0 0 2px #1c1914;
 }
 
 .flow-band[data-count="3"],
-.flow-band[data-count="4"] {
-  background: #1b3326;
+.flow-band[data-count="4"],
+.flow-swatch[data-count="3"] {
+  background: #1c1914;
   box-shadow: inset 0 0 0 2px #e6c27a;
 }
 
 .flow-axis {
-  display: flex;
-  justify-content: space-between;
+  position: relative;
+  height: 1.15rem;
   margin-top: 0.25rem;
   color: #2a241c;
   font-size: 0.78rem;
   font-weight: 650;
 }
+
+.flow-axis span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.flow-axis span:first-child {
+  transform: none;
+}
+
+.flow-axis span:last-child {
+  transform: translateX(-100%);
+}
+
+.flow-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 0.35rem;
+  padding: 0;
+  list-style: none;
+  color: #2a241c;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.flow-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.flow-swatch {
+  width: 1.05rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: #efe6d6;
+}
+
 
 @keyframes flow-in {
   from {
@@ -2005,6 +2102,33 @@ input[type="radio"] {
   color: #1c1914;
 }
 
+.saved-list .time-keep {
+  white-space: nowrap;
+}
+
+.saved-list > li.is-pending {
+  color: var(--muted);
+}
+
+.saved-list > li.is-pending h3 {
+  color: var(--ink-soft);
+}
+
+.pending-tag {
+  display: inline-block;
+  margin-left: 0.45rem;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--russet);
+  border-radius: 999px;
+  background: #f8ebe6;
+  color: var(--russet);
+  font-family: var(--sans);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+}
+
 @media (max-width: 640px) {
   .collector {
     width: min(40rem, calc(100% - 1.25rem));
@@ -2031,6 +2155,23 @@ input[type="radio"] {
   .chosen-day .text-btn {
     margin-left: 0;
     width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .flow-band,
+  body::after {
+    animation: none;
+  }
+
+  .btn:hover,
+  .day:hover,
+  .preset:hover {
+    transform: none;
   }
 }
 

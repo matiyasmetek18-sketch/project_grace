@@ -56,13 +56,26 @@ export function isClosedDay(date: string): boolean {
   return day === 0 || day === 4;
 }
 
-/** Why a single chosen day cannot be added, or null when it can. */
-export function dayChoiceMessage(date: string, existing: string[]): string | null {
+export const DUPLICATE_DAY_MESSAGE = "That day is already on your list.";
+
+/** Closed days and past days. Shared by the form and the save path. */
+export function offeredDayMessage(date: string, today = formatISODate(new Date())): string | null {
   if (!isISODate(date)) return "Choose a day.";
   const day = parseISODate(date).getDay();
   if (day === 0) return "Sundays are not on this list. Choose another day.";
   if (day === 4) return "Thursdays are not on this list. Choose another day.";
-  if (existing.includes(date)) return "That day is already on your list.";
+  if (date < today) return "That day has already passed. Choose today or a later day.";
+  return null;
+}
+
+/** Why a single chosen day cannot be added, or null when it can. */
+export function dayChoiceMessage(date: string, existing: string[], today = formatISODate(new Date())): string | null {
+  if (!isISODate(date)) return "Choose a day.";
+  const day = parseISODate(date).getDay();
+  if (day === 0) return "Sundays are not on this list. Choose another day.";
+  if (day === 4) return "Thursdays are not on this list. Choose another day.";
+  if (existing.includes(date)) return DUPLICATE_DAY_MESSAGE;
+  if (date < today) return "That day has already passed. Choose today or a later day.";
   return null;
 }
 

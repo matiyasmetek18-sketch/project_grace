@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   dateSpanDays,
+  DUPLICATE_DAY_MESSAGE,
   dayChoiceMessage,
   dayOrderMessage,
   defaultGatheringWindow,
@@ -32,12 +33,18 @@ describe("dates and hours", () => {
     ]);
   });
 
-  it("accepts one real weekday and refuses a blank, a Sunday, a Thursday, or a duplicate", () => {
-    expect(dayChoiceMessage("", [])).toBe("Choose a day.");
-    expect(dayChoiceMessage("2026-11-08", [])).toBe("Sundays are not on this list. Choose another day.");
-    expect(dayChoiceMessage("2026-11-12", [])).toBe("Thursdays are not on this list. Choose another day.");
-    expect(dayChoiceMessage("2026-11-07", ["2026-11-07"])).toBe("That day is already on your list.");
-    expect(dayChoiceMessage("2026-11-09", ["2026-11-07"])).toBeNull();
+  it("accepts one real weekday and refuses a blank, a Sunday, a Thursday, a duplicate, or a past day", () => {
+    const today = "2026-11-09";
+    expect(dayChoiceMessage("", [], today)).toBe("Choose a day.");
+    expect(dayChoiceMessage("2026-02-31", [], today)).toBe("Choose a day.");
+    expect(dayChoiceMessage("2026-11-08", [], today)).toBe("Sundays are not on this list. Choose another day.");
+    expect(dayChoiceMessage("2026-11-12", [], today)).toBe("Thursdays are not on this list. Choose another day.");
+    expect(dayChoiceMessage("2026-11-07", ["2026-11-07"], today)).toBe(DUPLICATE_DAY_MESSAGE);
+    expect(dayChoiceMessage("2026-11-09", ["2026-11-07"], today)).toBeNull();
+    expect(dayChoiceMessage("2026-11-10", [], today)).toBeNull();
+    expect(dayChoiceMessage("2026-11-06", [], today)).toBe(
+      "That day has already passed. Choose today or a later day.",
+    );
   });
 
   it("refuses a last day that comes before the first", () => {

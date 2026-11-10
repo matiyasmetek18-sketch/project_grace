@@ -15,7 +15,7 @@ export function Layout() {
           </Link>
         </div>
       </header>
-      <main id="main">
+      <main id="main" tabIndex={-1}>
         <Outlet />
       </main>
       <footer className="footer">
