@@ -46,7 +46,7 @@ A person can add more than one day. Each day is added on its own. Sundays and Th
 
 Answers are stored in one public list. There are no accounts. Anyone using the site can see every answer and remove any answer that is on the list, and the whole list could be wiped. Do not enter sensitive information.
 
-The public list does not add its own clock. This page uses the time sent with the answer. A time up to 7 days ahead is still shown and counted, so a clock that is about a day fast or slow does not hide a real answer. A time further ahead than that, such as the year 9999, stays in the list but is sorted after real answers and is not counted in the common times. An answer that has only Sunday or Thursday ranges is hidden on this page and is still stored publicly. An answer that has been sent but not confirmed yet is marked “Not confirmed yet” and is not counted in the common times. You can check the list again from that message.
+The public list does not add its own clock. This page uses the time sent with the answer. A time up to 7 days ahead is still shown and counted, so a clock that is about a day fast or slow does not hide a real answer. A time more than 5 minutes ahead is sorted after real answers, before the list is cut to 200, so it cannot push a real answer out. A time further ahead than 7 days, such as the year 9999, stays in the list but is sorted after real answers and is not counted in the common times. An answer that has only Sunday or Thursday ranges is hidden on this page and is still stored publicly. An answer that has been sent but not confirmed yet is marked “Not confirmed yet” and is not counted in the common times. You can check the list again from that message.
 
 ## Stack
 

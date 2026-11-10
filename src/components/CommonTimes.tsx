@@ -61,6 +61,18 @@ export function CommonTimes({
       )}
       {dates.length > 0 && (
         <div className="flow">
+          <ul className="flow-legend">
+            <li>
+              <span className="flow-swatch" data-count="1" aria-hidden="true" />1 person
+            </li>
+            <li>
+              <span className="flow-swatch" data-count="2" aria-hidden="true" />2 people
+            </li>
+            <li>
+              <span className="flow-swatch" data-count="3" aria-hidden="true" />
+              3+ people
+            </li>
+          </ul>
           {dates.map((date) => {
             const spans = covered.filter((span) => span.date === date);
             const label = spans
@@ -88,18 +100,6 @@ export function CommonTimes({
                     ))}
                   </div>
                 </div>
-                <ul className="flow-legend">
-                  <li>
-                    <span className="flow-swatch" data-count="1" aria-hidden="true" />1
-                  </li>
-                  <li>
-                    <span className="flow-swatch" data-count="2" aria-hidden="true" />2
-                  </li>
-                  <li>
-                    <span className="flow-swatch" data-count="3" aria-hidden="true" />
-                    3+
-                  </li>
-                </ul>
               </div>
             );
           })}

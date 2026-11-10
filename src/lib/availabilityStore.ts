@@ -3,13 +3,15 @@ import { isClosedDay, isHHMM, isISODate, keepSeparateRanges, minutes } from "./t
 
 /**
  * createdAt is the time the page sent. The public bin docs add an id on POST and
- * return the stored JSON; they do not add a server clock. Clocks can each be about
- * a day off, so a stamp up to 7 days ahead still sorts as a real time and counts
- * in common times. A stamp further ahead (for example year 9999) stays in the list
- * but sorts last, so it cannot push a real answer out of the 200 cap, and it does
- * not count in common times.
+ * return the stored JSON; they do not add a server clock. A stamp up to 7 days
+ * ahead is still shown and still counts in common times, so a clock about a day
+ * off does not hide a real answer. Anything more than 5 minutes ahead is sorted
+ * after real answers, before the 200 cap, so it cannot push a real answer out.
+ * A stamp further ahead than 7 days (for example year 9999) also sorts last and
+ * does not count.
  */
 const FAR_FUTURE_MS = 7 * 24 * 60 * 60 * 1000;
+const AHEAD_SORT_MS = 5 * 60 * 1000;
 
 export type AvailabilityEntry = {
   id: string;
@@ -33,7 +35,7 @@ function isRange(value: unknown): value is TimeRange {
   );
 }
 
-/** Milliseconds for ordering, or null when the value is missing, invalid, or more than 7 days ahead. */
+/** Milliseconds, or null when the value is missing, invalid, or more than 7 days ahead. */
 export function createdAtMillis(value: unknown, now = Date.now()): number | null {
   if (typeof value !== "string" || value.trim() === "") return null;
   const parsed = Date.parse(value);
@@ -88,10 +90,15 @@ export function sanitizeEntries(value: unknown, now = Date.now()): AvailabilityE
       },
     });
   }
+  const sortGroup = (sortKey: number | null) => {
+    if (sortKey == null) return 2;
+    if (sortKey > now + AHEAD_SORT_MS) return 1;
+    return 0;
+  };
   ranked.sort((a, b) => {
-    if (a.sortKey == null && b.sortKey == null) return 0;
-    if (a.sortKey == null) return 1;
-    if (b.sortKey == null) return -1;
+    const byGroup = sortGroup(a.sortKey) - sortGroup(b.sortKey);
+    if (byGroup !== 0) return byGroup;
+    if (a.sortKey == null || b.sortKey == null) return 0;
     return b.sortKey - a.sortKey;
   });
   return ranked.slice(0, 200).map((item) => item.entry);

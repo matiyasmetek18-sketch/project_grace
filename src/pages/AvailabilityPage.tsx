@@ -82,7 +82,8 @@ export function AvailabilityPage() {
   const savedTitleRef = useRef<HTMLHeadingElement>(null);
   const thanksRef = useRef<HTMLParagraphElement>(null);
   const focusAfterLoad = useRef(false);
-  const heldIds = useRef(new Set<string>());
+  const heldIds = useRef(new Map<string, "fresh" | number>());
+  const checkAgainFocus = useRef(false);
   const pendingSave = useRef<AvailabilityEntry | null>(null);
   const keepProblem = useRef(false);
   const removeTitleRef = useRef<HTMLHeadingElement>(null);
@@ -91,6 +92,8 @@ export function AvailabilityPage() {
 
   const loadList = useCallback(async () => {
     const requestId = ++listRequest.current;
+    const focusIfConfirmed = checkAgainFocus.current;
+    checkAgainFocus.current = false;
     try {
       const shared = await fetchSharedAnswers();
       if (requestId !== listRequest.current) return;
@@ -102,6 +105,7 @@ export function AvailabilityPage() {
         heldIds.current.delete(matched.id);
         setUnconfirmed("");
         setThanks(matched.name);
+        if (focusIfConfirmed) setNoticeFocus((tick) => tick + 1);
       }
       for (const id of sharedIds) heldIds.current.delete(id);
       setEntries((current) => {
@@ -109,8 +113,14 @@ export function AvailabilityPage() {
           if (sharedIds.has(item.id)) return false;
           if (shared.some((row) => sameOffer(row, item))) return false;
           if (!item.fromServer) return true;
-          return heldIds.current.has(item.id);
+          const held = heldIds.current.get(item.id);
+          // One lagging list may omit a just-saved id. The next list is the server's.
+          return held === "fresh" || held === requestId;
         });
+        for (const [id, held] of [...heldIds.current]) {
+          if (held === "fresh") heldIds.current.set(id, requestId);
+          else if (held !== requestId) heldIds.current.delete(id);
+        }
         return [...kept, ...shared];
       });
       if (keepProblem.current) keepProblem.current = false;
@@ -167,7 +177,18 @@ export function AvailabilityPage() {
 
   useEffect(() => {
     if (noticeFocus === 0) return;
-    thanksRef.current?.focus();
+    const node = thanksRef.current;
+    if (!node) return;
+    const media = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+    const reduceMotion = media?.matches ?? false;
+    node.focus({ preventScroll: true });
+    if (typeof node.scrollIntoView !== "function") return;
+    const behavior = reduceMotion ? "auto" : "instant";
+    try {
+      node.scrollIntoView({ block: "nearest", behavior });
+    } catch {
+      node.scrollIntoView({ block: "nearest" });
+    }
   }, [noticeFocus]);
 
   useEffect(() => {
@@ -392,7 +413,7 @@ export function AvailabilityPage() {
       const published = await publishSharedAnswer(entry);
       const saved = published.entry;
       pendingSave.current = saved;
-      if (saved.fromServer) heldIds.current.add(saved.id);
+      if (saved.fromServer) heldIds.current.set(saved.id, "fresh");
       setEntries((current) => [saved, ...current.filter((item) => item.id !== saved.id && !sameOffer(item, saved))]);
       if (published.confirmed) {
         setUnconfirmed("");
@@ -436,16 +457,20 @@ export function AvailabilityPage() {
             {formError}
           </p>
         )}
-        <p id="save-live" className="sr-only" role="status">
-          {saveBanner}
-        </p>
         {saveBanner && (
           <div className={unconfirmed && !thanks ? "banner banner-warn" : "banner"}>
-            <p id={thanks ? "thanks" : "save-unconfirmed"} tabIndex={-1} ref={thanksRef} aria-hidden="true">
+            <p id={thanks ? "thanks" : "save-unconfirmed"} tabIndex={-1} ref={thanksRef}>
               {saveBanner}
             </p>
             {unconfirmed && !thanks ? (
-              <button type="button" className="btn" onClick={() => void loadList()}>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  checkAgainFocus.current = true;
+                  void loadList();
+                }}
+              >
                 Check again
               </button>
             ) : null}

@@ -78,6 +78,25 @@ describe("sanitizeEntries", () => {
     expect(saved.ranges).toEqual([{ date: "2026-11-09", start: "08:00", end: "12:00" }]);
   });
 
+  it("keeps a real answer when 200 records are 6.9 days ahead", () => {
+    const now = Date.parse("2026-11-10T12:00:00.000Z");
+    const ahead = new Date(now + 6.9 * 24 * 60 * 60 * 1000).toISOString();
+    const junk = Array.from({ length: 200 }, (_, index) => ({
+      _id: `junk-${index}`,
+      name: "Junk",
+      note: "",
+      ranges: [range],
+      createdAt: ahead,
+    }));
+    const ordered = sanitizeEntries(
+      [...junk, { _id: "real", name: "Nia", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" }],
+      now,
+    );
+    expect(ordered).toHaveLength(200);
+    expect(ordered.map((item) => item.id)).toContain("real");
+    expect(countsInCommonTimes(ordered.find((item) => item.id === "real")!, now)).toBe(true);
+  });
+
   it("keeps a day of clock skew visible and sorts year 9999 last", () => {
     const now = Date.parse("2026-11-10T12:00:00.000Z");
     const viewerNow = now - 23 * 60 * 60 * 1000;

@@ -1970,15 +1970,7 @@ input[type="radio"] {
   gap: 1rem;
 }
 
-.flow-day {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 0.75rem;
-  align-items: end;
-}
-
 .flow-day h3 {
-  grid-column: 1 / -1;
   font-size: 1.15rem;
   margin-bottom: 0.35rem;
 }
@@ -2010,13 +2002,12 @@ input[type="radio"] {
 }
 
 .flow-band[data-count="2"] {
-  background: rgba(36, 56, 44, 0.72);
+  background: #1c1914;
 }
 
 .flow-band[data-count="3"],
 .flow-band[data-count="4"] {
-  background: #1b3326;
-  box-shadow: inset 0 0 0 2px #e6c27a;
+  background: #e6c27a;
 }
 
 .flow-axis {
@@ -2045,14 +2036,14 @@ input[type="radio"] {
 
 .flow-legend {
   display: flex;
-  gap: 0.45rem;
-  margin: 0;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0 0 0.35rem;
   padding: 0;
   list-style: none;
   color: #2a241c;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 650;
-  white-space: nowrap;
 }
 
 .flow-legend li {
@@ -2073,12 +2064,11 @@ input[type="radio"] {
 }
 
 .flow-swatch[data-count="2"] {
-  background: linear-gradient(rgba(36, 56, 44, 0.72), rgba(36, 56, 44, 0.72)), #efe6d6;
+  background: #1c1914;
 }
 
 .flow-swatch[data-count="3"] {
-  background: #1b3326;
-  box-shadow: inset 0 0 0 1px #e6c27a;
+  background: #e6c27a;
 }
 
 @keyframes flow-in {
