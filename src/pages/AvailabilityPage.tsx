@@ -7,6 +7,7 @@ import { uid } from "../lib/id";
 import {
   DUPLICATE_DAY_MESSAGE,
   dayChoiceMessage,
+  offeredDayMessage,
   formatDayNum,
   formatFullDate,
   formatISODate,
@@ -46,6 +47,7 @@ export function AvailabilityPage() {
   const suggested = useMemo(() => nextOpenDay(), []);
   const [entries, setEntries] = useState<AvailabilityEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [awaitingList, setAwaitingList] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [listProblem, setListProblem] = useState("");
   const [name, setName] = useState("");
@@ -61,6 +63,7 @@ export function AvailabilityPage() {
   const [formError, setFormError] = useState("");
   const [formErrorTick, setFormErrorTick] = useState(0);
   const [thanks, setThanks] = useState("");
+  const [unconfirmed, setUnconfirmed] = useState("");
   const [thanksTick, setThanksTick] = useState(0);
   const [listFocusTick, setListFocusTick] = useState(0);
   const [removedNotice, setRemovedNotice] = useState("");
@@ -79,6 +82,12 @@ export function AvailabilityPage() {
   const savedTitleRef = useRef<HTMLHeadingElement>(null);
   const thanksRef = useRef<HTMLParagraphElement>(null);
   const focusAfterLoad = useRef(false);
+  const heldIds = useRef(new Set<string>());
+  const pendingSave = useRef<AvailabilityEntry | null>(null);
+  const keepProblem = useRef(false);
+  const removeTitleRef = useRef<HTMLHeadingElement>(null);
+  const unconfirmedRef = useRef<HTMLParagraphElement>(null);
+  const removedTimer = useRef<number | null>(null);
   const afterRemoveFocus = useRef<"trigger" | "list" | null>(null);
   const todayIso = formatISODate(new Date());
 
@@ -87,11 +96,28 @@ export function AvailabilityPage() {
     try {
       const shared = await fetchSharedAnswers();
       if (requestId !== listRequest.current) return;
+      const sharedIds = new Set(shared.map((row) => row.id));
+      const pending = pendingSave.current;
+      const matched = pending ? shared.find((row) => row.id === pending.id || sameOffer(row, pending)) : undefined;
+      if (matched) {
+        pendingSave.current = null;
+        heldIds.current.delete(matched.id);
+        setUnconfirmed("");
+        setThanks(matched.name);
+        setThanksTick((tick) => tick + 1);
+      }
+      for (const id of sharedIds) heldIds.current.delete(id);
       setEntries((current) => {
-        const pending = current.filter((item) => !item.fromServer && !shared.some((row) => sameOffer(row, item)));
-        return [...pending, ...shared];
+        const kept = current.filter((item) => {
+          if (sharedIds.has(item.id)) return false;
+          if (shared.some((row) => sameOffer(row, item))) return false;
+          if (!item.fromServer) return true;
+          return heldIds.current.has(item.id);
+        });
+        return [...kept, ...shared];
       });
-      setListProblem("");
+      if (keepProblem.current) keepProblem.current = false;
+      else setListProblem("");
       setLoadFailed(false);
       if (focusAfterLoad.current) {
         focusAfterLoad.current = false;
@@ -99,10 +125,20 @@ export function AvailabilityPage() {
       }
     } catch {
       if (requestId !== listRequest.current) return;
-      setListProblem("The shared list did not load.");
-      setLoadFailed(true);
+      if (pendingSave.current && !pendingSave.current.fromServer) {
+        setUnconfirmed(pendingSave.current.name);
+        setThanks("");
+        setListProblem("");
+        setLoadFailed(false);
+      } else {
+        setListProblem("The shared list did not load.");
+        setLoadFailed(true);
+      }
     } finally {
-      if (requestId === listRequest.current) setLoading(false);
+      if (requestId === listRequest.current) {
+        setLoading(false);
+        setAwaitingList(false);
+      }
     }
   }, []);
 
@@ -135,6 +171,10 @@ export function AvailabilityPage() {
   useEffect(() => {
     if (thanks) thanksRef.current?.focus();
   }, [thanks, thanksTick]);
+
+  useEffect(() => {
+    if (unconfirmed) unconfirmedRef.current?.focus();
+  }, [unconfirmed]);
 
   useEffect(() => {
     if (listFocusTick === 0) return;
@@ -171,7 +211,7 @@ export function AvailabilityPage() {
   const nameInvalid = formError.startsWith("Add your name");
   const daysInvalid = formError.startsWith("Add the day") || formError.startsWith("Add a time");
   const sendInvalid = formError.startsWith("This answer was not sent");
-  const listStatus = loading && entries.length === 0 ? "loading" : loadFailed && entries.length === 0 ? "error" : "ready";
+  const listStatus = awaitingList ? "loading" : loadFailed && entries.length === 0 ? "error" : "ready";
 
   function dayDescribedBy(): string {
     return ["day-help", dayError ? "day-error" : "", daysInvalid ? "form-error" : ""].filter(Boolean).join(" ");
@@ -257,6 +297,15 @@ export function AvailabilityPage() {
     setFormError("");
   }
 
+  function announce(text: string) {
+    if (removedTimer.current != null) window.clearTimeout(removedTimer.current);
+    setRemovedNotice("");
+    window.setTimeout(() => {
+      setRemovedNotice(text);
+      removedTimer.current = window.setTimeout(() => setRemovedNotice(""), 400);
+    }, 20);
+  }
+
   function retryLoad() {
     focusAfterLoad.current = true;
     setLoading(true);
@@ -282,17 +331,26 @@ export function AvailabilityPage() {
     const entry = pendingRemove;
     removingRef.current = true;
     setRemoving(true);
+    removeTitleRef.current?.focus();
     try {
-      await removeSharedAnswer(entry.id);
+      const outcome = await removeSharedAnswer(entry.id);
+      heldIds.current.delete(entry.id);
       setEntries((current) => current.filter((item) => item.id !== entry.id));
-      setListProblem("");
-      setRemovedNotice(`Removed ${entry.name}`);
+      if (outcome === "already-removed") {
+        keepProblem.current = true;
+        setListProblem(`${entry.name} was already removed.`);
+        announce(`${entry.name} was already removed.`);
+        void loadList();
+      } else {
+        setListProblem("");
+        announce(`Removed ${entry.name}`);
+      }
       afterRemoveFocus.current = "list";
       dialogRef.current?.close();
       setPendingRemove(null);
     } catch (error) {
-      setRemovedNotice("");
-      setListProblem(error instanceof Error ? error.message : "That answer was not removed. Try again.");
+      const raw = error instanceof Error ? error.message : "";
+      setListProblem(raw && raw !== "Failed to fetch" ? raw : "The shared list could not be reached. Try again.");
       afterRemoveFocus.current = "trigger";
       dialogRef.current?.close();
       setPendingRemove(null);
@@ -318,6 +376,13 @@ export function AvailabilityPage() {
       showFormError("Add a time for each day. It can be as short as you like.");
       return;
     }
+    for (const range of ranges) {
+      const message = offeredDayMessage(range.date);
+      if (message) {
+        showFormError(message);
+        return;
+      }
+    }
     const entry: AvailabilityEntry = {
       id: `pending-${uid("person")}`,
       fromServer: false,
@@ -329,10 +394,19 @@ export function AvailabilityPage() {
     savingRef.current = true;
     setSaving(true);
     try {
-      const saved = await publishSharedAnswer(entry);
+      const published = await publishSharedAnswer(entry);
+      const saved = published.entry;
+      pendingSave.current = saved;
+      if (saved.fromServer) heldIds.current.add(saved.id);
       setEntries((current) => [saved, ...current.filter((item) => item.id !== saved.id && !sameOffer(item, saved))]);
-      setThanks(saved.name);
-      setThanksTick((tick) => tick + 1);
+      if (published.confirmed) {
+        setUnconfirmed("");
+        setThanks(saved.name);
+        setThanksTick((tick) => tick + 1);
+      } else {
+        setThanks("");
+        setUnconfirmed(saved.name);
+      }
       void loadList();
       setName("");
       setNote("");
@@ -368,8 +442,13 @@ export function AvailabilityPage() {
           </p>
         )}
         {thanks && (
-          <p id="thanks" className="banner" role="status" tabIndex={-1} ref={thanksRef}>
+          <p id="thanks" className="banner" tabIndex={-1} ref={thanksRef}>
             Thank you, {thanks}. Anyone with this page can see your times.
+          </p>
+        )}
+        {unconfirmed && (
+          <p id="save-unconfirmed" className="banner banner-warn" tabIndex={-1} ref={unconfirmedRef}>
+            {unconfirmed}, your answer was sent, but the list has not confirmed it yet.
           </p>
         )}
 
@@ -600,9 +679,8 @@ export function AvailabilityPage() {
             )}
           </div>
         )}
-        {loading && entries.length === 0 ? (
-          <p className="saved-empty">Loading answers…</p>
-        ) : entries.length === 0 && !loadFailed ? (
+        {awaitingList ? <p className="saved-empty">Loading answers…</p> : null}
+        {entries.length === 0 && !awaitingList && !loadFailed ? (
           <p className="saved-empty">No one has added a time yet.</p>
         ) : entries.length > 0 ? (
           <ul className="saved-list">
@@ -664,7 +742,9 @@ export function AvailabilityPage() {
       >
         {pendingRemove && (
           <>
-            <h2 id="remove-title">Remove {pendingRemove.name}?</h2>
+            <h2 id="remove-title" tabIndex={-1} ref={removeTitleRef}>
+              Remove {pendingRemove.name}?
+            </h2>
             <p id="remove-copy">{pendingRemove.name}&apos;s answer will be taken off the shared list.</p>
             <div className="dialog-actions">
               <button ref={cancelButtonRef} type="button" className="btn btn-ghost" disabled={removing} onClick={cancelRemove}>

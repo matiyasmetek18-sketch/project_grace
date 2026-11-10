@@ -40,11 +40,13 @@ Answers live in one public list. Anyone who can open the site can read every ans
 
 You can remove an answer after you confirm, when the shared list has given that answer an id. The page asks before it removes anyone. An answer the list has not identified cannot be removed from here.
 
-A person can add more than one day. Each day is added on its own. Sundays and Thursdays are not accepted, and those days are left off when the list is shown. A day already on your own list cannot be added again. A day that has already passed cannot be added. An answer that is already on the list for a past day stays visible. The page shows where the times overlap.
+A person can add more than one day. Each day is added on its own. Sundays and Thursdays are not accepted, and those days are left off when the list is shown. An answer that has only Sunday or Thursday ranges is hidden here, but it is still stored in the public list. A day already on your own list cannot be added again. A day that has already passed cannot be added. An answer that is already on the list for a past day stays visible. The page shows where the times overlap.
 
 ## Limitations
 
 Answers are stored in one public list. There are no accounts. Anyone using the site can see every answer and remove any answer that is on the list, and the whole list could be wiped. Do not enter sensitive information.
+
+An answer dated more than 24 hours ahead is not shown and is not counted in the common times. It can still be stored in the public list. An answer dated more than 5 minutes ahead, but not more than 24 hours, is shown after the answers that have a real time. An answer that has only Sunday or Thursday ranges is hidden on this page and is still stored publicly.
 
 ## Stack
 

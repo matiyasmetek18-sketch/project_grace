@@ -1,5 +1,5 @@
 import type { AvailabilityEntry } from "./availabilityStore";
-import { sameOffer, sanitizeEntries } from "./availabilityStore";
+import { sanitizeEntries } from "./availabilityStore";
 import { offeredDayMessage } from "./time";
 
 /**
@@ -10,6 +10,12 @@ import { offeredDayMessage } from "./time";
 const COLLECTION = "https://dontlosedata.site/api/v1/9dc450ce-03a3-4c84-b91f-b7ad27cd2f39";
 
 type StoredAnswer = Partial<AvailabilityEntry> & { _id?: string };
+
+export type PublishedAnswer = {
+  entry: AvailabilityEntry;
+  /** False when the POST succeeded but this page does not yet have the server id. */
+  confirmed: boolean;
+};
 
 function echoedId(body: unknown): string {
   if (!body || typeof body !== "object" || Array.isArray(body)) return "";
@@ -26,21 +32,26 @@ export async function fetchSharedAnswers(): Promise<AvailabilityEntry[]> {
   return sanitizeEntries(body);
 }
 
-export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<AvailabilityEntry> {
+export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<PublishedAnswer> {
   for (const range of entry.ranges) {
     const message = offeredDayMessage(range.date);
     if (message) throw new Error(message);
   }
-  const response = await fetch(COLLECTION, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name: entry.name,
-      note: entry.note,
-      ranges: entry.ranges,
-      createdAt: entry.createdAt,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(COLLECTION, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: entry.name,
+        note: entry.note,
+        ranges: entry.ranges,
+        createdAt: entry.createdAt,
+      }),
+    });
+  } catch {
+    throw new Error("The shared list could not be reached. Try again.");
+  }
   if (!response.ok) throw new Error("The shared list did not save this answer.");
   let body: unknown = null;
   try {
@@ -50,18 +61,22 @@ export async function publishSharedAnswer(entry: AvailabilityEntry): Promise<Ava
   }
   if (body && typeof body === "object" && !Array.isArray(body)) {
     const [saved] = sanitizeEntries([body]);
-    if (saved) return saved;
+    if (saved) return { entry: saved, confirmed: true };
     const serverId = echoedId(body);
-    if (serverId) return { ...entry, id: serverId, fromServer: true };
+    if (serverId) return { entry: { ...entry, id: serverId, fromServer: true }, confirmed: true };
   }
-  const shared = await fetchSharedAnswers();
-  const match = shared.find((item) => sameOffer(item, entry));
-  if (match) return match;
-  return { ...entry, fromServer: false };
+  // The POST is already saved. A later list read must not turn that into a failure.
+  return { entry: { ...entry, fromServer: false }, confirmed: false };
 }
 
-export async function removeSharedAnswer(id: string): Promise<void> {
-  const response = await fetch(`${COLLECTION}/id/${encodeURIComponent(id)}`, { method: "DELETE" });
-  if (response.status === 404) throw new Error("That answer is not on the shared list.");
+export async function removeSharedAnswer(id: string): Promise<"removed" | "already-removed"> {
+  let response: Response;
+  try {
+    response = await fetch(`${COLLECTION}/id/${encodeURIComponent(id)}`, { method: "DELETE" });
+  } catch {
+    throw new Error("The shared list could not be reached. Try again.");
+  }
+  if (response.status === 404) return "already-removed";
   if (!response.ok) throw new Error("The shared list did not remove that answer.");
+  return "removed";
 }

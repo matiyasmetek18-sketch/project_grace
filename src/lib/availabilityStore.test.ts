@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sanitizeEntries } from "./availabilityStore";
+import { commonSpans } from "./commonTimes";
+import { sameOffer, sanitizeEntries } from "./availabilityStore";
 
 const range = { date: "2026-11-13", start: "08:00", end: "09:00" };
 
@@ -69,41 +70,33 @@ describe("sanitizeEntries", () => {
     expect(saved.ranges).toEqual([{ date: "2026-11-09", start: "08:00", end: "12:00" }]);
   });
 
-  it("sorts missing, invalid, and future createdAt last so they cannot crowd out real answers", () => {
+  it("sorts a slightly future createdAt last and drops one more than a day ahead", () => {
     const now = Date.parse("2026-11-10T12:00:00.000Z");
-    const junk = Array.from({ length: 200 }, (_, index) => ({
-      _id: `junk-${index}`,
-      name: "Junk",
-      note: "",
-      ranges: [range],
-      createdAt: "9999-01-01T00:00:00.000Z",
-    }));
-    const sanitized = sanitizeEntries(
-      [
-        ...junk,
-        {
-          _id: "real",
-          name: "Nia",
-          note: "",
-          ranges: [range],
-          createdAt: "2026-11-01T00:00:00.000Z",
-        },
-      ],
-      now,
-    );
-    expect(sanitized).toHaveLength(200);
-    expect(sanitized[0].id).toBe("real");
-    expect(sanitized.some((item) => item.id === "junk-199")).toBe(false);
-
+    const soon = new Date(now + 2 * 60 * 60 * 1000).toISOString();
     const ordered = sanitizeEntries(
       [
-        { _id: "future", name: "Future", note: "", ranges: [range], createdAt: "9999-06-01T00:00:00.000Z" },
+        { _id: "soon", name: "Soon", note: "", ranges: [range], createdAt: soon },
         { _id: "missing", name: "Missing", note: "", ranges: [range] },
         { _id: "bad", name: "Bad", note: "", ranges: [range], createdAt: "not-a-date" },
+        { _id: "junk", name: "Junk", note: "", ranges: [range], createdAt: "9999-01-01T00:00:00.000Z" },
         { _id: "real", name: "Nia", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" },
       ],
       now,
     );
-    expect(ordered.map((item) => item.id)).toEqual(["real", "future", "missing", "bad"]);
+    expect(ordered.map((item) => item.id)).toEqual(["real", "soon", "missing", "bad"]);
+    expect(commonSpans(ordered).some((span) => span.names.includes("Junk"))).toBe(false);
+  });
+
+  it("does not treat two offers as the same when createdAt differs", () => {
+    const base = {
+      id: "a",
+      fromServer: true as const,
+      name: "Nia",
+      note: "",
+      ranges: [range],
+      createdAt: "2026-11-10T12:00:00.000Z",
+    };
+    expect(sameOffer(base, { ...base, id: "b" })).toBe(true);
+    expect(sameOffer(base, { ...base, createdAt: "2026-11-10T12:00:01.000Z" })).toBe(false);
   });
 });

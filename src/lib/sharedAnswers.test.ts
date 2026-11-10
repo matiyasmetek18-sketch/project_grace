@@ -44,32 +44,25 @@ describe("shared answers", () => {
     expect(saved.fromServer).toBe(true);
   });
 
-  it("refetches the server id when the save response does not echo the record", async () => {
+  it("does not throw after a successful save when the record is not echoed", async () => {
     const fetchMock = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
       if ((init?.method ?? "GET").toUpperCase() === "POST") return json({ ok: true });
-      return json([
-        {
-          _id: "server-9",
-          id: "spoof-id",
-          name: entry.name,
-          note: entry.note,
-          ranges: entry.ranges,
-          createdAt: "2026-11-09T00:00:00.000Z",
-        },
-      ]);
+      return json({ message: "down" }, 503);
     });
     vi.stubGlobal("fetch", fetchMock);
     const saved = await publishSharedAnswer(entry);
-    expect(saved.id).toBe("server-9");
-    expect(saved.fromServer).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(saved.confirmed).toBe(false);
+    expect(saved.entry.fromServer).toBe(false);
+    expect(saved.entry.name).toBe("Nia");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("keeps a server id from a partial save response", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => json({ _id: "server-7" })));
     const saved = await publishSharedAnswer(entry);
-    expect(saved.id).toBe("server-7");
-    expect(saved.fromServer).toBe(true);
+    expect(saved.confirmed).toBe(true);
+    expect(saved.entry.id).toBe("server-7");
+    expect(saved.entry.fromServer).toBe(true);
   });
 
   it("returns the echoed record under the server id", async () => {
@@ -87,7 +80,8 @@ describe("shared answers", () => {
       ),
     );
     const saved = await publishSharedAnswer(entry);
-    expect(saved.id).toBe("server-3");
+    expect(saved.confirmed).toBe(true);
+    expect(saved.entry.id).toBe("server-3");
   });
 
   it("rejects a past or closed day before saving", async () => {
@@ -110,8 +104,18 @@ describe("shared answers", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("treats delete of a missing answer as a failure", async () => {
+  it("reports a server id that was already removed", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 404 })));
-    await expect(removeSharedAnswer("server-1")).rejects.toThrow(/not on the shared list/);
+    await expect(removeSharedAnswer("server-1")).resolves.toBe("already-removed");
+  });
+
+  it("uses a plain message when delete cannot reach the list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    await expect(removeSharedAnswer("server-1")).rejects.toThrow(/could not be reached/);
   });
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AvailabilityPage } from "./AvailabilityPage";
 
@@ -112,7 +112,7 @@ describe("availability page", () => {
     const sending = screen.getByRole("button", { name: "Sending…" }) as HTMLButtonElement;
     expect(sending.disabled).toBe(true);
     post.resolve(json({}));
-    expect(await screen.findByText(/Thank you, Nia/)).toBeTruthy();
+    expect(await screen.findByText(/has not confirmed it yet/)).toBeTruthy();
     expect(screen.queryByText(/was not sent/)).toBeNull();
     expect(calls.filter((call) => call.method === "POST")).toHaveLength(1);
   });
@@ -122,7 +122,14 @@ describe("availability page", () => {
     mockBin((call) => {
       if (call.method === "GET") return json([]);
       posts += 1;
-      return json({}, posts === 1 ? 500 : 200);
+      if (posts === 1) return json({}, 500);
+      return json({
+        _id: "nia",
+        name: "Nia",
+        note: "",
+        ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+        createdAt: "2026-11-01T00:00:00.000Z",
+      });
     });
     render(<AvailabilityPage />);
     expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
@@ -145,16 +152,7 @@ describe("availability page", () => {
       if (call.method === "GET") {
         gets += 1;
         if (gets === 1) return first.promise;
-        return json([
-          { _id: "ada", name: "Ada", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" },
-          {
-            _id: "nia",
-            name: "Nia",
-            note: "",
-            ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
-            createdAt: "2026-11-01T00:00:00.000Z",
-          },
-        ]);
+        return json([{ _id: "ada", name: "Ada", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" }]);
       }
       return json({});
     });
@@ -275,6 +273,7 @@ describe("availability page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
     const thanks = await screen.findByText(/Thank you, Nia/);
     expect(document.activeElement).toBe(thanks);
+    expect(thanks.getAttribute("role")).toBeNull();
   });
 
   it("clears a duplicate-day message that no longer applies", async () => {
@@ -293,7 +292,7 @@ describe("availability page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add this day" }));
     expect((await screen.findByRole("alert")).textContent).toMatch(/already on your list/);
     fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
-    expect(await screen.findByText(/Thank you, Nia/)).toBeTruthy();
+    expect(await screen.findByText(/confirmed it yet|Thank you, Nia/)).toBeTruthy();
     expect(screen.queryByText(/already on your list/)).toBeNull();
   });
 
@@ -356,16 +355,183 @@ describe("availability page", () => {
     expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Ada" })).toBeNull();
     expect(calls.filter((call) => call.method === "DELETE")).toHaveLength(1);
-    expect(screen.getByText("Removed Ada")).toBeTruthy();
+    expect(await screen.findByText("Removed Ada")).toBeTruthy();
   });
 
-  it("keeps the answer listed when delete returns 404", async () => {
-    mockBin((call) => (call.method === "DELETE" ? new Response(null, { status: 404 }) : json([ada])));
+  it("removes a server answer locally when delete returns 404", async () => {
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "DELETE") return new Response(null, { status: 404 });
+      gets += 1;
+      return json(gets === 1 ? [ada] : []);
+    });
     render(<AvailabilityPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Remove Ada" }));
     fireEvent.click(within(await screen.findByRole("dialog", { name: "Remove Ada?" })).getByRole("button", { name: "Remove Ada" }));
-    expect(await screen.findByText("That answer is not on the shared list.")).toBeTruthy();
+    expect(await screen.findByText(/already removed/)).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Ada" })).toBeNull();
+    expect(gets).toBeGreaterThan(1);
+  });
+
+  it("does not apply an older list response after a successful submit", async () => {
+    const first = defer<Response>();
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return first.promise;
+        return json([
+          { _id: "ada", name: "Ada", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" },
+          {
+            _id: "nia-server",
+            name: "Nia",
+            note: "",
+            ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+            createdAt: "2026-11-01T00:00:00.000Z",
+          },
+        ]);
+      }
+      return json({
+        _id: "nia-server",
+        name: "Nia",
+        note: "",
+        ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+        createdAt: "2026-11-01T00:00:00.000Z",
+      });
+    });
+    render(<AvailabilityPage />);
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
+    await act(async () => {
+      first.resolve(json([]));
+      await first.promise;
+    });
+    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
-    expect(screen.queryByText("Removed Ada")).toBeNull();
+  });
+
+  it("shows the validator message when a chosen day is past at submit", async () => {
+    let posts = 0;
+    mockBin((call) => {
+      if (call.method === "POST") {
+        posts += 1;
+        return json({ ok: true });
+      }
+      return json([]);
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+    fillHours();
+    vi.setSystemTime(new Date(2026, 10, 11, 12, 0, 0));
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect((await screen.findByRole("alert")).textContent).toMatch(/already passed/);
+    expect(screen.queryByText(/was not sent/)).toBeNull();
+    expect(posts).toBe(0);
+  });
+
+  it("says the answer was sent but not confirmed when the list does not include it", async () => {
+    mockBin((call) => {
+      if (call.method === "GET") return json({ message: "down" }, 503);
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByText(/has not confirmed it yet/)).toBeTruthy();
+    expect(screen.queryByText(/Thank you, Nia/)).toBeNull();
+    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
+    expect(screen.queryByText(/was not sent/)).toBeNull();
+  });
+
+  it("requests the list once after a save that does not echo the record", async () => {
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        return json([]);
+      }
+      return json({ ok: true });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+    const before = gets;
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    await screen.findByText(/has not confirmed it yet/);
+    expect(gets - before).toBe(1);
+  });
+
+  it("keeps a saved answer until a refetch includes its id", async () => {
+    let gets = 0;
+    mockBin((call) => {
+      if (call.method === "GET") {
+        gets += 1;
+        if (gets === 1) return json([]);
+        return json([{ _id: "ada", name: "Ada", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" }]);
+      }
+      return json({
+        _id: "nia-server",
+        name: "Nia",
+        note: "",
+        ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+        createdAt: "2026-11-01T00:00:00.000Z",
+      });
+    });
+    render(<AvailabilityPage />);
+    expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Nia" })).toBeTruthy();
+  });
+
+  it("shows loading instead of the second-person note while the first list is still out", async () => {
+    const pendingGets: Array<(value: Response) => void> = [];
+    mockBin((call) => {
+      if (call.method === "GET") {
+        return new Promise<Response>((resolve) => {
+          pendingGets.push(resolve);
+        });
+      }
+      return json({
+        _id: "nia-server",
+        name: "Nia",
+        note: "",
+        ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+        createdAt: "2026-11-01T00:00:00.000Z",
+      });
+    });
+    render(<AvailabilityPage />);
+    expect(screen.getByText("Loading answers…")).toBeTruthy();
+    fillHours();
+    fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+    expect(await screen.findByRole("heading", { name: "Nia" })).toBeTruthy();
+    expect(screen.getByText("Loading answers…")).toBeTruthy();
+    expect(screen.queryByText(/second person/)).toBeNull();
+    for (const resolve of pendingGets) {
+      resolve(json([{ _id: "ada", name: "Ada", note: "", ranges: [range], createdAt: "2026-11-01T00:00:00.000Z" }]));
+    }
+    expect(await screen.findByRole("heading", { name: "Ada" })).toBeTruthy();
+  });
+
+  it("keeps focus on the dialog title while a delete is in flight", async () => {
+    const pending = defer<Response>();
+    mockBin((call) => (call.method === "DELETE" ? pending.promise : json([ada])));
+    render(<AvailabilityPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Ada" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove Ada" }));
+    expect(document.activeElement?.id).toBe("remove-title");
+    pending.resolve(new Response(null, { status: 200 }));
+  });
+
+  it("clears the removed announcement so a later removal can be spoken", async () => {
+    mockBin((call) => (call.method === "DELETE" ? new Response(null, { status: 200 }) : json([ada])));
+    render(<AvailabilityPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove Ada" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Remove Ada" }));
+    expect(await screen.findByText("Removed Ada")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("Removed Ada")).toBeNull());
   });
 });
