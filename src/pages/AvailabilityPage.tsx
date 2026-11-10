@@ -206,12 +206,18 @@ export function AvailabilityPage() {
         window.scrollTo(0, top);
       }
     };
-    scrollTo(window.scrollY);
+    const currentY = window.scrollY;
+    if (currentY > 0) {
+      scrollTo(currentY - 1);
+    } else {
+      scrollTo(currentY + 1);
+    }
+    scrollTo(currentY);
     const headerBottom = document.querySelector(".topbar")?.getBoundingClientRect().bottom ?? 0;
     const margin = Number.parseFloat(getComputedStyle(node).scrollMarginTop) || 0;
     const clearance = Math.max(margin, headerBottom);
     const rect = node.getBoundingClientRect();
-    const fullyVisible = rect.top >= headerBottom - 0.5 && rect.bottom <= window.innerHeight + 0.5;
+    const fullyVisible = rect.top >= clearance - 0.5 && rect.bottom <= window.innerHeight + 0.5;
     if (!fullyVisible) scrollTo(Math.max(0, window.scrollY + rect.top - clearance));
     root.style.scrollBehavior = previousBehavior;
     node.focus({ preventScroll: true });

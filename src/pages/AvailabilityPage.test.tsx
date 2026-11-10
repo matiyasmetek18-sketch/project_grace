@@ -892,7 +892,7 @@ describe("availability page", () => {
     const before = gets;
     document.dispatchEvent(new Event("visibilitychange"));
     await waitFor(() => expect(gets).toBeGreaterThan(before));
-    expect(screen.queryByRole("heading", { name: "Nia" })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Nia" })).toBeNull());
     expect(commonText()).not.toMatch(/Nia/);
     expect(screen.getByRole("heading", { name: "Ada" })).toBeTruthy();
   });
@@ -992,6 +992,44 @@ describe("availability page", () => {
       ).toBe(true);
     } finally {
       window.scrollTo = original;
+    }
+  });
+
+  it("cancels an ongoing scroll mid-flight when window.scrollY > 0 and clears the topbar", async () => {
+    const calls: unknown[][] = [];
+    const original = window.scrollTo.bind(window);
+    Object.defineProperty(window, "scrollY", { value: 300, writable: true, configurable: true });
+    window.scrollTo = ((...args: unknown[]) => {
+      calls.push(args);
+      return original(...(args as Parameters<typeof window.scrollTo>));
+    }) as typeof window.scrollTo;
+    mockBin((call) =>
+      call.method === "GET"
+        ? json([])
+        : json({
+            _id: "nia",
+            name: "Nia",
+            note: "",
+            ranges: [{ date: "2026-11-10", start: "08:00", end: "12:00" }],
+            createdAt: "2026-11-01T00:00:00.000Z",
+          }),
+    );
+    try {
+      render(<AvailabilityPage />);
+      expect(await screen.findByText("No one has added a time yet.")).toBeTruthy();
+      fillHours();
+      fireEvent.click(screen.getByRole("button", { name: "Share when I can come" }));
+      expect(await screen.findByText(/Thank you, Nia/, { selector: "#thanks" })).toBeTruthy();
+      expect(document.activeElement?.id).toBe("thanks");
+      expect(calls).toEqual(
+        expect.arrayContaining([
+          [expect.objectContaining({ top: 299, behavior: "instant" })],
+          [expect.objectContaining({ top: 300, behavior: "instant" })],
+        ]),
+      );
+    } finally {
+      window.scrollTo = original;
+      Object.defineProperty(window, "scrollY", { value: 0, writable: true, configurable: true });
     }
   });
 });
